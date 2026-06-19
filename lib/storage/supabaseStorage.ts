@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { normalizeAnalysisResult } from "@/lib/scoring/normalizeAnalysisResult";
 import { AnalysisRecord, ProfileRecord, WritingSample } from "@/lib/types";
 import { AddWritingSampleInput, CreateAnalysisInput, CreateFeedbackInput, CreateRevisionInput, StorageAdapter } from "./types";
 
@@ -23,15 +24,16 @@ export async function ensureSupabaseUser(userId: string) {
 }
 
 function mapAnalysis(row: any): AnalysisRecord {
+  const result = normalizeAnalysisResult(row.result_json);
   return {
     id: row.id,
     userId: row.user_id,
     title: row.title,
     originalText: row.original_text,
     contentType: row.content_type,
-    result: row.result_json,
-    overallRisk: row.overall_risk,
-    riskLabel: row.risk_label,
+    result,
+    overallRisk: result.overallRisk,
+    riskLabel: result.riskLabel,
     createdAt: row.created_at
   };
 }

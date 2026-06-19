@@ -1,4 +1,5 @@
 import { AnalysisResult, RiskLabel, StyleProfile } from "@/lib/types";
+import { riskLabelFromRiskScore } from "@/lib/scoring/normalizeScore";
 
 export const LOCAL_USER_ID = "00000000-0000-4000-8000-000000000001";
 
@@ -22,7 +23,7 @@ export const demoAnalysis: AnalysisResult = {
   confidence: "medium",
   riskLabel: "medium",
   summary:
-    "The draft has several polished, generalized passages with steady sentence structure. Adding concrete examples and more personal framing would lower the AI-likeness risk.",
+    "The draft has some authentic signals, but several polished, generalized passages would benefit from concrete examples and more personal framing.",
   scores: {
     predictability: 72,
     structuralUniformity: 68,
@@ -50,7 +51,5 @@ export const demoAnalysis: AnalysisResult = {
 };
 
 export function riskLabelFor(score: number): RiskLabel {
-  if (score >= 70) return "high";
-  if (score >= 40) return "medium";
-  return "low";
+  return riskLabelFromRiskScore(score);
 }

@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { emptyStyleProfile } from "@/lib/constants";
+import { normalizeAnalysisResult } from "@/lib/scoring/normalizeAnalysisResult";
 import { AnalysisRecord, FeedbackRecord, ProfileRecord, RevisionRecord, WritingSample } from "@/lib/types";
 import { AddWritingSampleInput, CreateAnalysisInput, CreateFeedbackInput, CreateRevisionInput, StorageAdapter } from "./types";
 
@@ -58,12 +59,21 @@ async function writeData(data: DevData) {
 export const devStorage: StorageAdapter = {
   async listAnalyses(userId) {
     const data = await readData();
-    return data.analyses.filter((item) => item.userId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return data.analyses
+      .filter((item) => item.userId === userId)
+      .map((item) => {
+        const result = normalizeAnalysisResult(item.result);
+        return { ...item, result, overallRisk: result.overallRisk, riskLabel: result.riskLabel };
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   },
 
   async getAnalysis(userId, analysisId) {
     const data = await readData();
-    return data.analyses.find((item) => item.userId === userId && item.id === analysisId) ?? null;
+    const item = data.analyses.find((analysis) => analysis.userId === userId && analysis.id === analysisId);
+    if (!item) return null;
+    const result = normalizeAnalysisResult(item.result);
+    return { ...item, result, overallRisk: result.overallRisk, riskLabel: result.riskLabel };
   },
 
   async createAnalysis(input: CreateAnalysisInput) {

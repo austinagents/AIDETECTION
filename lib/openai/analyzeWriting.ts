@@ -1,8 +1,9 @@
 import { demoAnalysis, riskLabelFor } from "@/lib/constants";
 import { AppError, safeDetails } from "@/lib/api/errors";
+import { aiRiskToAuthenticityScore, inferScoreScale, normalizeScore, normalizeScoreGroup, riskLabelFromAuthenticityScore } from "@/lib/scoring/normalizeScore";
 import { AnalysisResult, ContentType, StyleProfile } from "@/lib/types";
 import { getOpenAIClient } from "./client";
-import { clampScore, extractJson } from "./json";
+import { extractJson } from "./json";
 import { OPENAI_MODEL } from "./model";
 
 type AnalyzeInput = {
@@ -29,15 +30,19 @@ export async function analyzeWriting(input: AnalyzeInput): Promise<AnalysisResul
         },
         {
           role: "user",
-          content: `Analyze this draft for AI-like writing risk signals.
+          content: `Analyze this draft for AI-like writing risk signals and return an authenticity-focused score.
 
 Judge signals such as overly balanced tone, generic transitions, predictable sentence structure, low specificity, lack of personal voice, polished but empty wording, uniform paragraph structure, generic conclusions, low emotional texture, and absence of concrete details.
 
 If a writing profile is provided, include revision suggestions that move the draft closer to that profile without changing the user's meaning.
 
+Return all scores as integers from 0 to 100. Do not return decimals.
+The top-level "authenticityScore" is positive: higher means more authentic and less AI-like.
+For paragraph "risk", higher means that paragraph has more AI-like risk signals.
+
 Return exactly this JSON shape:
 {
-  "overallRisk": number,
+  "authenticityScore": number,
   "confidence": "low" | "medium" | "high",
   "riskLabel": "low" | "medium" | "high",
   "summary": string,
@@ -100,33 +105,75 @@ ${input.content}`
 
 function normalizeAnalysis(result: AnalysisResult, content: string): AnalysisResult {
   const paragraphs = splitParagraphs(content);
-  const overallRisk = clampScore(result.overallRisk);
+  const rawResult = result as AnalysisResult & {
+    authenticityScore?: unknown;
+    overallAuthenticity?: unknown;
+    authenticity?: unknown;
+    aiLikenessRisk?: unknown;
+    aiRisk?: unknown;
+  };
+  const scoreValues = [
+    rawResult.authenticityScore,
+    rawResult.overallAuthenticity,
+    rawResult.authenticity,
+    rawResult.overallRisk,
+    rawResult.aiLikenessRisk,
+    rawResult.aiRisk,
+    result.scores?.predictability,
+    result.scores?.structuralUniformity,
+    result.scores?.genericPhrasing,
+    result.scores?.specificity,
+    result.scores?.personalVoice,
+    result.scores?.emotionalTexture,
+    result.scores?.vocabularyNaturalness,
+    result.scores?.sentenceRhythmVariance,
+    ...(Array.isArray(result.paragraphs) ? result.paragraphs.map((paragraph) => paragraph.risk) : [])
+  ];
+  const scoreScale = inferScoreScale(scoreValues);
+  const authenticitySource = rawResult.authenticityScore ?? rawResult.overallAuthenticity ?? rawResult.authenticity;
+  const overallRiskSource = rawResult.aiLikenessRisk ?? rawResult.aiRisk ?? rawResult.overallRisk;
+  const authenticityScore =
+    authenticitySource !== undefined && authenticitySource !== null
+      ? normalizeScore(authenticitySource, { scale: scoreScale })
+      : aiRiskToAuthenticityScore(overallRiskSource, scoreScale);
+
+  const normalizedScores = normalizeScoreGroup([
+    result.scores?.predictability,
+    result.scores?.structuralUniformity,
+    result.scores?.genericPhrasing,
+    result.scores?.specificity,
+    result.scores?.personalVoice,
+    result.scores?.emotionalTexture,
+    result.scores?.vocabularyNaturalness,
+    result.scores?.sentenceRhythmVariance
+  ]);
+
   return {
     ...result,
-    overallRisk,
-    riskLabel: result.riskLabel ?? riskLabelFor(overallRisk),
+    overallRisk: authenticityScore,
+    riskLabel: riskLabelFromAuthenticityScore(authenticityScore),
     confidence: result.confidence ?? "medium",
     scores: {
-      predictability: clampScore(result.scores?.predictability),
-      structuralUniformity: clampScore(result.scores?.structuralUniformity),
-      genericPhrasing: clampScore(result.scores?.genericPhrasing),
-      specificity: clampScore(result.scores?.specificity),
-      personalVoice: clampScore(result.scores?.personalVoice),
-      emotionalTexture: clampScore(result.scores?.emotionalTexture),
-      vocabularyNaturalness: clampScore(result.scores?.vocabularyNaturalness),
-      sentenceRhythmVariance: clampScore(result.scores?.sentenceRhythmVariance)
+      predictability: normalizedScores[0],
+      structuralUniformity: normalizedScores[1],
+      genericPhrasing: normalizedScores[2],
+      specificity: normalizedScores[3],
+      personalVoice: normalizedScores[4],
+      emotionalTexture: normalizedScores[5],
+      vocabularyNaturalness: normalizedScores[6],
+      sentenceRhythmVariance: normalizedScores[7]
     },
     mainReasons: Array.isArray(result.mainReasons) ? result.mainReasons.slice(0, 6) : demoAnalysis.mainReasons,
     paragraphs: (Array.isArray(result.paragraphs) && result.paragraphs.length ? result.paragraphs : paragraphs.map((text, index) => ({
       index,
       text,
-      risk: overallRisk,
-      riskLabel: riskLabelFor(overallRisk),
+      risk: 100 - authenticityScore,
+      riskLabel: riskLabelFor(100 - authenticityScore),
       reasons: ["This paragraph needs more specific evidence before it can be scored confidently."],
       suggestions: ["Add concrete details and vary the sentence rhythm."]
     }))).map((paragraph, index) => {
-      const risk = clampScore(paragraph.risk);
-      return { ...paragraph, index: paragraph.index ?? index, risk, riskLabel: paragraph.riskLabel ?? riskLabelFor(risk) };
+      const risk = normalizeScore(paragraph.risk, { scale: scoreScale });
+      return { ...paragraph, index: paragraph.index ?? index, risk, riskLabel: riskLabelFor(risk) };
     }),
     revisionStrategy: Array.isArray(result.revisionStrategy) ? result.revisionStrategy : demoAnalysis.revisionStrategy,
     styleAlignedSuggestions: Array.isArray(result.styleAlignedSuggestions) ? result.styleAlignedSuggestions : demoAnalysis.styleAlignedSuggestions
@@ -149,13 +196,14 @@ function heuristicAnalysis(content: string, styleProfile?: StyleProfile | null):
   const genericPhrasing = Math.min(86, 38 + genericHits * 14);
   const personalVoice = styleProfile && styleProfile.styleRules.length ? 55 : 38;
   const rhythm = avgSentenceLength > 24 ? 39 : 58;
-  const overallRisk = Math.round((predictability + structuralUniformity + genericPhrasing + (100 - specificity) + (100 - personalVoice) + (100 - rhythm)) / 6);
+  const aiRisk = Math.round((predictability + structuralUniformity + genericPhrasing + (100 - specificity) + (100 - personalVoice) + (100 - rhythm)) / 6);
+  const authenticityScore = 100 - aiRisk;
 
   return {
     ...demoAnalysis,
-    overallRisk,
+    overallRisk: authenticityScore,
     confidence: words.length < 120 ? "low" : "medium",
-    riskLabel: riskLabelFor(overallRisk),
+    riskLabel: riskLabelFromAuthenticityScore(authenticityScore),
     summary:
       "Local preview scoring found patterns that may read as AI-like. Add an OpenAI API key for deeper paragraph-level analysis and richer style-aligned suggestions.",
     scores: {
@@ -169,7 +217,7 @@ function heuristicAnalysis(content: string, styleProfile?: StyleProfile | null):
       sentenceRhythmVariance: rhythm
     },
     paragraphs: paragraphs.map((text, index) => {
-      const paragraphRisk = Math.max(20, Math.min(88, overallRisk + (text.length > 650 ? 8 : 0) + (genericTerms.some((term) => text.toLowerCase().includes(term)) ? 10 : -4)));
+      const paragraphRisk = Math.max(20, Math.min(88, aiRisk + (text.length > 650 ? 8 : 0) + (genericTerms.some((term) => text.toLowerCase().includes(term)) ? 10 : -4)));
       return {
         index,
         text,

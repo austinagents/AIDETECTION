@@ -4,6 +4,7 @@ import { Card } from "@/components/ui";
 import { Shell } from "@/components/Shell";
 import { RiskBadge } from "@/components/RiskBadge";
 import { LOCAL_USER_ID } from "@/lib/constants";
+import { formatScore } from "@/lib/scoring/normalizeScore";
 import { getStorage } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export default async function DashboardPage() {
     storage.listWritingSamples(LOCAL_USER_ID),
     storage.getStyleProfile(LOCAL_USER_ID)
   ]);
-  const averageRisk = analyses.length ? Math.round(analyses.reduce((sum, item) => sum + item.overallRisk, 0) / analyses.length) : 0;
+  const averageAuthenticity = analyses.length ? Math.round(analyses.reduce((sum, item) => sum + item.overallRisk, 0) / analyses.length) : 0;
   const strength = samples.length >= 8 ? "Strong" : samples.length >= 3 ? "Developing" : "Needs samples";
 
   return (
@@ -34,7 +35,7 @@ export default async function DashboardPage() {
       <section className="mt-8 grid gap-4 md:grid-cols-4">
         <Stat title="Analyses" value={analyses.length.toString()} />
         <Stat title="Writing samples" value={samples.length.toString()} />
-        <Stat title="Average risk" value={analyses.length ? `${averageRisk}` : "—"} />
+        <Stat title="Average authenticity" value={analyses.length ? formatScore(averageAuthenticity) : "—"} />
         <Stat title="Profile strength" value={strength} />
       </section>
 
@@ -52,7 +53,7 @@ export default async function DashboardPage() {
                   <p className="mt-1 text-sm text-slate-400">{item.contentType} · {new Date(item.createdAt).toLocaleDateString()}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-xl font-semibold">{item.overallRisk}</span>
+                  <span className="text-xl font-semibold">{formatScore(item.overallRisk)}</span>
                   <RiskBadge label={item.riskLabel} />
                 </div>
               </Link>

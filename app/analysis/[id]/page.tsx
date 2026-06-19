@@ -4,6 +4,7 @@ import { RiskBadge } from "@/components/RiskBadge";
 import { ScoreBar } from "@/components/ScoreBar";
 import { Card } from "@/components/ui";
 import { LOCAL_USER_ID } from "@/lib/constants";
+import { formatScore, normalizeScore } from "@/lib/scoring/normalizeScore";
 import { getStorage } from "@/lib/storage";
 import { Feedback, ParagraphActions } from "./ResultActions";
 
@@ -23,6 +24,7 @@ export default async function AnalysisResultPage({ params }: { params: { id: str
   if (!analysis) notFound();
 
   const result = analysis.result;
+  const authenticityScore = normalizeScore(result.overallRisk);
   const topScores = [
     ["Predictability", result.scores.predictability],
     ["Voice", result.scores.personalVoice],
@@ -44,8 +46,8 @@ export default async function AnalysisResultPage({ params }: { params: { id: str
         <Card className="p-7">
           <p className="text-sm text-slate-400">Authenticity Score</p>
           <div className="mt-4 flex items-end gap-4">
-            <span className="text-7xl font-semibold leading-none">{result.overallRisk}</span>
-            <span className="pb-2 text-sm capitalize text-slate-400">{result.confidence} confidence</span>
+            <span className="text-7xl font-semibold leading-none">{formatScore(authenticityScore)}</span>
+            <span className="pb-2 text-sm capitalize text-slate-400">{result.riskLabel} Risk</span>
           </div>
           <p className="mt-6 text-sm leading-6 text-slate-300">{result.summary}</p>
         </Card>
@@ -54,7 +56,7 @@ export default async function AnalysisResultPage({ params }: { params: { id: str
           {topScores.map(([label, value]) => (
             <Card key={label} className="p-5">
               <p className="text-sm text-slate-400">{label}</p>
-              <p className="mt-4 text-4xl font-semibold">{value}</p>
+              <p className="mt-4 text-4xl font-semibold">{formatScore(value)}</p>
             </Card>
           ))}
         </div>
@@ -88,7 +90,7 @@ export default async function AnalysisResultPage({ params }: { params: { id: str
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-slate-300">Paragraph {paragraph.index + 1}</p>
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold">{paragraph.risk}</span>
+                  <span className="text-sm font-semibold">{formatScore(paragraph.risk)}</span>
                   <RiskBadge label={paragraph.riskLabel} />
                 </div>
               </div>
