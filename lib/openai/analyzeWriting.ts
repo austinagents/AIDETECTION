@@ -1,7 +1,9 @@
 import { demoAnalysis, riskLabelFor } from "@/lib/constants";
+import { AppError, safeDetails } from "@/lib/api/errors";
 import { AnalysisResult, ContentType, StyleProfile } from "@/lib/types";
 import { getOpenAIClient } from "./client";
 import { clampScore, extractJson } from "./json";
+import { OPENAI_MODEL } from "./model";
 
 type AnalyzeInput = {
   title: string;
@@ -14,19 +16,20 @@ export async function analyzeWriting(input: AnalyzeInput): Promise<AnalysisResul
   const client = getOpenAIClient();
   if (!client) return heuristicAnalysis(input.content, input.styleProfile);
 
-  const response = await client.chat.completions.create({
-    model: "gpt-4o-mini",
-    response_format: { type: "json_object" },
-    temperature: 0.2,
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are an AI-authenticity writing analyst. Analyze AI-like writing signals with structured scoring. Do not claim certainty about authorship. Do not mention bypassing detectors, evading systems, or making text undetectable. Return strict JSON only."
-      },
-      {
-        role: "user",
-        content: `Analyze this draft for AI-like writing risk signals.
+  try {
+    const response = await client.chat.completions.create({
+      model: OPENAI_MODEL,
+      response_format: { type: "json_object" },
+      temperature: 0.2,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an AI-authenticity writing analyst. Analyze AI-like writing signals with structured scoring. Do not claim certainty about authorship. Do not make evasion-related claims. Return strict JSON only."
+        },
+        {
+          role: "user",
+          content: `Analyze this draft for AI-like writing risk signals.
 
 Judge signals such as overly balanced tone, generic transitions, predictable sentence structure, low specificity, lack of personal voice, polished but empty wording, uniform paragraph structure, generic conclusions, low emotional texture, and absence of concrete details.
 
@@ -68,12 +71,31 @@ Content type: ${input.contentType}
 Writing profile: ${input.styleProfile ? JSON.stringify(input.styleProfile) : "No profile available"}
 Draft:
 ${input.content}`
-      }
-    ]
-  });
+        }
+      ]
+    });
 
-  const parsed = extractJson<AnalysisResult>(response.choices[0]?.message?.content ?? "{}");
-  return normalizeAnalysis(parsed, input.content);
+    try {
+      const parsed = extractJson<AnalysisResult>(response.choices[0]?.message?.content ?? "{}");
+      return normalizeAnalysis(parsed, input.content);
+    } catch (error) {
+      const fallback = heuristicAnalysis(input.content, input.styleProfile);
+      return {
+        ...fallback,
+        confidence: "low",
+        summary:
+          "The OpenAI response could not be parsed as structured JSON, so this result uses local preview scoring. Try again for a full model-backed analysis."
+      };
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new AppError(
+      "OPENAI_ERROR",
+      "OpenAI analysis failed. Check that OPENAI_API_KEY is valid and the configured model is available.",
+      502,
+      safeDetails(message)
+    );
+  }
 }
 
 function normalizeAnalysis(result: AnalysisResult, content: string): AnalysisResult {

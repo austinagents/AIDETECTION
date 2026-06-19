@@ -47,6 +47,7 @@ async function readData(): Promise<DevData> {
 async function writeData(data: DevData) {
   const globalStore = globalThis as typeof globalThis & { [memoryKey]?: DevData };
   globalStore[memoryKey] = data;
+  if (process.env.NODE_ENV === "production") return;
   try {
     await fs.writeFile(dataFile, JSON.stringify(data, null, 2), "utf8");
   } catch {

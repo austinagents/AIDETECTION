@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { AppError, classifyStorageError, isAppError, publicError } from "@/lib/api/errors";
 import { LOCAL_USER_ID } from "@/lib/constants";
 import { analyzeWriting } from "@/lib/openai/analyzeWriting";
 import { getStorage } from "@/lib/storage";
@@ -13,27 +14,37 @@ export async function POST(request: Request) {
     const useProfile = Boolean(body.useProfile);
 
     if (content.trim().length < 40) {
-      return NextResponse.json({ error: "Add at least a short paragraph before running analysis." }, { status: 400 });
+      throw new AppError("VALIDATION_ERROR", "Add at least a short paragraph before running analysis.", 400);
     }
 
     const storage = getStorage();
-    const profile = useProfile ? await storage.getStyleProfile(LOCAL_USER_ID) : null;
+    const profile = useProfile
+      ? await storage.getStyleProfile(LOCAL_USER_ID).catch((error) => {
+          throw classifyStorageError(error);
+        })
+      : null;
     const result = await analyzeWriting({
       title,
       content,
       contentType,
       styleProfile: profile?.profile ?? null
     });
-    const analysis = await storage.createAnalysis({
-      userId: LOCAL_USER_ID,
-      title,
-      originalText: content,
-      contentType,
-      result
-    });
+    const analysis = await storage
+      .createAnalysis({
+        userId: LOCAL_USER_ID,
+        title,
+        originalText: content,
+        contentType,
+        result
+      })
+      .catch((error) => {
+        throw classifyStorageError(error);
+      });
 
-    return NextResponse.json({ analysis });
+    return NextResponse.json({ ok: true, analysis });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Analysis failed." }, { status: 500 });
+    console.error("POST /api/analyze failed", error);
+    const response = publicError(isAppError(error) ? error : error);
+    return NextResponse.json(response.body, { status: response.status });
   }
 }

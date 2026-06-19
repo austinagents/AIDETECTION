@@ -1,6 +1,6 @@
 import { AnalysisResult, RiskLabel, StyleProfile } from "@/lib/types";
 
-export const LOCAL_USER_ID = "local-demo-user";
+export const LOCAL_USER_ID = "00000000-0000-4000-8000-000000000001";
 
 export const emptyStyleProfile: StyleProfile = {
   tone: "Not enough saved writing yet",

@@ -39,7 +39,10 @@ export default function ProfilePage() {
         body: JSON.stringify({ title, content, contentType })
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not save sample.");
+      if (!response.ok) {
+        const detail = data.details ? ` (${data.code}: ${data.details})` : data.code ? ` (${data.code})` : "";
+        throw new Error(`${data.error || "Could not save sample."}${detail}`);
+      }
       setProfile(data.profile);
       setSamples((current) => [data.sample, ...current]);
       setTitle("");

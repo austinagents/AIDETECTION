@@ -32,7 +32,10 @@ export function ParagraphActions({ analysisId, paragraph }: { analysisId: string
         })
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Revision failed.");
+      if (!response.ok) {
+        const detail = data.details ? ` (${data.code}: ${data.details})` : data.code ? ` (${data.code})` : "";
+        throw new Error(`${data.error || "Revision failed."}${detail}`);
+      }
       setRevision(data.revisedText);
       setExplanation(data.explanation);
     } catch (caught) {

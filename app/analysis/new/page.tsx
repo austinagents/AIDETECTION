@@ -40,10 +40,13 @@ export default function NewAnalysisPage() {
         body: JSON.stringify({ title, content, contentType, useProfile })
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Analysis failed.");
+      if (!response.ok) {
+        const detail = data.details ? ` (${data.code}: ${data.details})` : data.code ? ` (${data.code})` : "";
+        throw new Error(`${data.error || "Analysis failed."}${detail}`);
+      }
       router.push(`/analysis/${data.analysis.id}`);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Analysis failed.");
+      setError(caught instanceof Error ? caught.message : "Analysis failed. Check the server health endpoint and try again.");
     } finally {
       setLoading(false);
     }

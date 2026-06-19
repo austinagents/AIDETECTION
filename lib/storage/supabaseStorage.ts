@@ -2,11 +2,24 @@ import { createClient } from "@supabase/supabase-js";
 import { AnalysisRecord, ProfileRecord, WritingSample } from "@/lib/types";
 import { AddWritingSampleInput, CreateAnalysisInput, CreateFeedbackInput, CreateRevisionInput, StorageAdapter } from "./types";
 
+export function isSupabaseConfigured() {
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
+
 function client() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   return createClient(url, key, { auth: { persistSession: false } });
+}
+
+async function ensureUser(userId: string) {
+  const supabase = client();
+  if (!supabase) return;
+  const { error } = await supabase
+    .from("users")
+    .upsert({ id: userId, email: null }, { onConflict: "id" });
+  if (error) throw error;
 }
 
 function mapAnalysis(row: any): AnalysisRecord {
@@ -23,7 +36,7 @@ function mapAnalysis(row: any): AnalysisRecord {
   };
 }
 
-export const supabaseStorage: StorageAdapter | null = client()
+export const supabaseStorage: StorageAdapter | null = isSupabaseConfigured()
   ? {
       async listAnalyses(userId) {
         const { data, error } = await client()!
@@ -47,6 +60,7 @@ export const supabaseStorage: StorageAdapter | null = client()
       },
 
       async createAnalysis(input: CreateAnalysisInput) {
+        await ensureUser(input.userId);
         const { data, error } = await client()!
           .from("analyses")
           .insert({
@@ -82,6 +96,7 @@ export const supabaseStorage: StorageAdapter | null = client()
       },
 
       async addWritingSample(input: AddWritingSampleInput) {
+        await ensureUser(input.userId);
         const { data, error } = await client()!
           .from("writing_samples")
           .insert({
@@ -123,6 +138,7 @@ export const supabaseStorage: StorageAdapter | null = client()
       },
 
       async upsertStyleProfile(userId, profile, sampleCount) {
+        await ensureUser(userId);
         const existing = await this.getStyleProfile(userId);
         const payload = {
           user_id: userId,
@@ -170,6 +186,7 @@ export const supabaseStorage: StorageAdapter | null = client()
       },
 
       async createFeedback(input: CreateFeedbackInput) {
+        await ensureUser(input.userId);
         const { data, error } = await client()!
           .from("feedback")
           .insert({

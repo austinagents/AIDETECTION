@@ -1,25 +1,28 @@
 import { emptyStyleProfile } from "@/lib/constants";
+import { AppError, safeDetails } from "@/lib/api/errors";
 import { StyleProfile, WritingSample } from "@/lib/types";
 import { getOpenAIClient } from "./client";
 import { extractJson } from "./json";
+import { OPENAI_MODEL } from "./model";
 
 export async function updateStyleProfile(samples: WritingSample[], currentProfile?: StyleProfile | null): Promise<StyleProfile> {
   const client = getOpenAIClient();
   if (!client) return heuristicProfile(samples);
 
-  const response = await client.chat.completions.create({
-    model: "gpt-4o-mini",
-    response_format: { type: "json_object" },
-    temperature: 0.25,
-    messages: [
-      {
-        role: "system",
-        content:
-          "You analyze a user's saved writing samples to maintain a personal writing style profile. Do not discuss bypassing detection. Return strict JSON only."
-      },
-      {
-        role: "user",
-        content: `Update this writing style profile using the saved samples. Preserve useful existing observations, but revise them if the new samples show better evidence.
+  try {
+    const response = await client.chat.completions.create({
+      model: OPENAI_MODEL,
+      response_format: { type: "json_object" },
+      temperature: 0.25,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You analyze a user's saved writing samples to maintain a personal writing style profile. Do not make evasion-related claims. Return strict JSON only."
+        },
+        {
+          role: "user",
+          content: `Update this writing style profile using the saved samples. Preserve useful existing observations, but revise them if the new samples show better evidence.
 
 Return exactly:
 {
@@ -39,11 +42,24 @@ Return exactly:
 
 Current profile: ${currentProfile ? JSON.stringify(currentProfile) : "None"}
 Samples: ${JSON.stringify(samples.map(({ title, contentType, content }) => ({ title, contentType, content: content.slice(0, 5000) })))}`
-      }
-    ]
-  });
+        }
+      ]
+    });
 
-  return { ...emptyStyleProfile, ...extractJson<StyleProfile>(response.choices[0]?.message?.content ?? "{}") };
+    try {
+      return { ...emptyStyleProfile, ...extractJson<StyleProfile>(response.choices[0]?.message?.content ?? "{}") };
+    } catch {
+      return heuristicProfile(samples);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new AppError(
+      "OPENAI_ERROR",
+      "OpenAI style profile update failed. Check that OPENAI_API_KEY is valid and the configured model is available.",
+      502,
+      safeDetails(message)
+    );
+  }
 }
 
 function heuristicProfile(samples: WritingSample[]): StyleProfile {
