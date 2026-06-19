@@ -1,7 +1,7 @@
 import { demoAnalysis, riskLabelFor } from "@/lib/constants";
 import { AppError, safeDetails } from "@/lib/api/errors";
 import { aiRiskToAuthenticityScore, inferScoreScale, normalizeScore, normalizeScoreGroup, riskLabelFromAuthenticityScore } from "@/lib/scoring/normalizeScore";
-import { AnalysisResult, ContentType, StyleProfile } from "@/lib/types";
+import { AnalysisResult, ContentType, ParagraphAnalysis, StyleProfile } from "@/lib/types";
 import { getOpenAIClient } from "./client";
 import { extractJson } from "./json";
 import { OPENAI_MODEL } from "./model";
@@ -26,19 +26,44 @@ export async function analyzeWriting(input: AnalyzeInput): Promise<AnalysisResul
         {
           role: "system",
           content:
-            "You are an AI-authenticity writing analyst. Analyze AI-like writing signals with structured scoring. Do not claim certainty about authorship. Do not make evasion-related claims. Return strict JSON only."
+            "You are an authorship evidence analyst. Evaluate two competing hypotheses: a human wrote this, or AI wrote this. Do not grade writing quality, grammar, readability, or probability. Weigh Human Authorship Evidence against AI Authorship Evidence. Do not claim certainty. Do not make evasion-related claims. Return strict JSON only."
         },
         {
           role: "user",
-          content: `Analyze this draft for AI-like writing risk signals and return an authenticity-focused score.
+          content: `Analyze this draft as an authorship evidence engine.
 
-Judge signals such as overly balanced tone, generic transitions, predictable sentence structure, low specificity, lack of personal voice, polished but empty wording, uniform paragraph structure, generic conclusions, low emotional texture, and absence of concrete details.
+Core question:
+What evidence suggests a human wrote this?
+What evidence suggests AI wrote this?
+
+Human Authorship Evidence increases authenticity:
+- Authorial judgment: prioritization, interpretation, emphasis, comparison, contrast, causality, significance, intentional weighting.
+- Specificity: concrete nouns, grounded examples, precise verbs, situational context, tangible details, named concepts.
+- Sentence variation: varied sentence length, varied openings, rhythm changes, emphasis, occasional short sentences, non-symmetrical flow.
+- Information hierarchy: clear primary idea, supporting ideas, contrast, emphasis, hierarchy.
+- Voice ownership: deliberate phrasing, strong framing, clear perspective, intentional wording, sentence-level personality. This does not require first person.
+- Information compression: compact insight, high information density, efficient expression, compressed meaning.
+- Surprise / contrast: unexpected interpretation, original framing, perspective shifts, contrast.
+- Natural flow: natural transitions, conversational logic, authentic rhythm.
+
+AI Authorship Evidence lowers authenticity:
+- Generic framing: low-information openings, broad introductory claims, generic educational framing, filler context.
+- Over-balancing: perfectly balanced clauses, excessive three-part lists, symmetrical sentence structure, evenly weighted information.
+- Abstract language: abstract noun stacking, concept-heavy writing without grounding, generalized claims.
+- Predictable structure: repeated claim / explanation / expansion / conclusion structure.
+- Flat summary tone: encyclopedia voice, informational summary tone, educational overview style, evenly weighted facts.
+- Low specificity: broad claims, generic examples, vague references, placeholder nouns.
+- Template-like transitions: obvious progression, predictable flow, mechanical transitions, essay-template structure.
+
+Document-level evidence:
+Evaluate theme consistency, recurring priorities, recurring viewpoints, voice consistency, reasoning consistency, argument development, and information progression. Ask whether the document feels like one person making a series of choices, or like independently generated paragraphs.
 
 If a writing profile is provided, include revision suggestions that move the draft closer to that profile without changing the user's meaning.
 
 Return all scores as integers from 0 to 100. Do not return decimals.
-The top-level "authenticityScore" is positive: higher means more authentic and less AI-like.
+The top-level "authenticityScore" is positive: higher means stronger Human Authorship Evidence and weaker AI Authorship Evidence.
 For paragraph "risk", higher means that paragraph has more AI-like risk signals.
+Risk is derived from authenticityScore: 76-100 low, 51-75 medium, 0-50 high.
 
 Return exactly this JSON shape:
 {
@@ -47,16 +72,25 @@ Return exactly this JSON shape:
   "riskLabel": "low" | "medium" | "high",
   "summary": string,
   "scores": {
+    "authorialJudgment": number,
     "predictability": number,
     "structuralUniformity": number,
     "genericPhrasing": number,
     "specificity": number,
+    "informationHierarchy": number,
     "personalVoice": number,
+    "voiceOwnership": number,
+    "informationCompression": number,
+    "surpriseContrast": number,
+    "naturalFlow": number,
     "emotionalTexture": number,
     "vocabularyNaturalness": number,
     "sentenceRhythmVariance": number
   },
   "mainReasons": string[],
+  "humanAuthorshipEvidence": string[],
+  "aiAuthorshipEvidence": string[],
+  "documentEvidence": string[],
   "paragraphs": [
     {
       "index": number,
@@ -64,7 +98,9 @@ Return exactly this JSON shape:
       "risk": number,
       "riskLabel": "low" | "medium" | "high",
       "reasons": string[],
-      "suggestions": string[]
+      "suggestions": string[],
+      "humanEvidence": string[],
+      "aiEvidence": string[]
     }
   ],
   "revisionStrategy": string[],
@@ -122,8 +158,14 @@ function normalizeAnalysis(result: AnalysisResult, content: string): AnalysisRes
     result.scores?.predictability,
     result.scores?.structuralUniformity,
     result.scores?.genericPhrasing,
+    result.scores?.authorialJudgment,
     result.scores?.specificity,
+    result.scores?.informationHierarchy,
     result.scores?.personalVoice,
+    result.scores?.voiceOwnership,
+    result.scores?.informationCompression,
+    result.scores?.surpriseContrast,
+    result.scores?.naturalFlow,
     result.scores?.emotionalTexture,
     result.scores?.vocabularyNaturalness,
     result.scores?.sentenceRhythmVariance,
@@ -138,11 +180,17 @@ function normalizeAnalysis(result: AnalysisResult, content: string): AnalysisRes
       : aiRiskToAuthenticityScore(overallRiskSource, scoreScale);
 
   const normalizedScores = normalizeScoreGroup([
+    result.scores?.authorialJudgment,
     result.scores?.predictability,
     result.scores?.structuralUniformity,
     result.scores?.genericPhrasing,
     result.scores?.specificity,
+    result.scores?.informationHierarchy,
     result.scores?.personalVoice,
+    result.scores?.voiceOwnership,
+    result.scores?.informationCompression,
+    result.scores?.surpriseContrast,
+    result.scores?.naturalFlow,
     result.scores?.emotionalTexture,
     result.scores?.vocabularyNaturalness,
     result.scores?.sentenceRhythmVariance
@@ -154,26 +202,42 @@ function normalizeAnalysis(result: AnalysisResult, content: string): AnalysisRes
     riskLabel: riskLabelFromAuthenticityScore(authenticityScore),
     confidence: result.confidence ?? "medium",
     scores: {
-      predictability: normalizedScores[0],
-      structuralUniformity: normalizedScores[1],
-      genericPhrasing: normalizedScores[2],
-      specificity: normalizedScores[3],
-      personalVoice: normalizedScores[4],
-      emotionalTexture: normalizedScores[5],
-      vocabularyNaturalness: normalizedScores[6],
-      sentenceRhythmVariance: normalizedScores[7]
+      authorialJudgment: normalizedScores[0],
+      predictability: normalizedScores[1],
+      structuralUniformity: normalizedScores[2],
+      genericPhrasing: normalizedScores[3],
+      specificity: normalizedScores[4],
+      informationHierarchy: normalizedScores[5],
+      personalVoice: normalizedScores[6],
+      voiceOwnership: normalizedScores[7],
+      informationCompression: normalizedScores[8],
+      surpriseContrast: normalizedScores[9],
+      naturalFlow: normalizedScores[10],
+      emotionalTexture: normalizedScores[11],
+      vocabularyNaturalness: normalizedScores[12],
+      sentenceRhythmVariance: normalizedScores[13]
     },
     mainReasons: Array.isArray(result.mainReasons) ? result.mainReasons.slice(0, 6) : demoAnalysis.mainReasons,
-    paragraphs: (Array.isArray(result.paragraphs) && result.paragraphs.length ? result.paragraphs : paragraphs.map((text, index) => ({
+    humanAuthorshipEvidence: Array.isArray(result.humanAuthorshipEvidence) ? result.humanAuthorshipEvidence.slice(0, 8) : demoAnalysis.humanAuthorshipEvidence,
+    aiAuthorshipEvidence: Array.isArray(result.aiAuthorshipEvidence) ? result.aiAuthorshipEvidence.slice(0, 8) : demoAnalysis.aiAuthorshipEvidence,
+    documentEvidence: Array.isArray(result.documentEvidence) ? result.documentEvidence.slice(0, 6) : demoAnalysis.documentEvidence,
+    paragraphs: ((Array.isArray(result.paragraphs) && result.paragraphs.length ? result.paragraphs : paragraphs.map((text, index) => ({
       index,
       text,
       risk: 100 - authenticityScore,
       riskLabel: riskLabelFor(100 - authenticityScore),
-      reasons: ["This paragraph needs more specific evidence before it can be scored confidently."],
-      suggestions: ["Add concrete details and vary the sentence rhythm."]
-    }))).map((paragraph, index) => {
+      reasons: ["This paragraph needs stronger Human Authorship Evidence before it can be scored confidently."],
+      suggestions: ["Add authorial judgment, concrete details, and more varied sentence rhythm."]
+    }))) as ParagraphAnalysis[]).map((paragraph, index) => {
       const risk = normalizeScore(paragraph.risk, { scale: scoreScale });
-      return { ...paragraph, index: paragraph.index ?? index, risk, riskLabel: riskLabelFor(risk) };
+      return {
+        ...paragraph,
+        index: paragraph.index ?? index,
+        risk,
+        riskLabel: riskLabelFor(risk),
+        humanEvidence: Array.isArray(paragraph.humanEvidence) ? paragraph.humanEvidence : [],
+        aiEvidence: Array.isArray(paragraph.aiEvidence) ? paragraph.aiEvidence : []
+      };
     }),
     revisionStrategy: Array.isArray(result.revisionStrategy) ? result.revisionStrategy : demoAnalysis.revisionStrategy,
     styleAlignedSuggestions: Array.isArray(result.styleAlignedSuggestions) ? result.styleAlignedSuggestions : demoAnalysis.styleAlignedSuggestions
@@ -196,7 +260,25 @@ function heuristicAnalysis(content: string, styleProfile?: StyleProfile | null):
   const genericPhrasing = Math.min(86, 38 + genericHits * 14);
   const personalVoice = styleProfile && styleProfile.styleRules.length ? 55 : 38;
   const rhythm = avgSentenceLength > 24 ? 39 : 58;
-  const aiRisk = Math.round((predictability + structuralUniformity + genericPhrasing + (100 - specificity) + (100 - personalVoice) + (100 - rhythm)) / 6);
+  const authorialJudgment = Math.max(28, Math.min(78, specificity - genericHits * 4 + (content.includes("because") ? 8 : 0)));
+  const informationHierarchy = Math.max(25, Math.min(78, 64 - structuralUniformity / 3 - genericHits * 4));
+  const voiceOwnership = Math.max(24, personalVoice);
+  const informationCompression = Math.max(22, Math.min(82, 68 - (avgSentenceLength > 24 ? 18 : 0) - genericHits * 6));
+  const surpriseContrast = Math.max(18, Math.min(76, content.match(/\b(but|however|instead|rather|although|while)\b/i) ? specificity + 8 : specificity - 12));
+  const naturalFlow = Math.max(26, Math.min(80, rhythm + (genericHits ? -8 : 6)));
+  const aiRisk = Math.round(
+    (predictability +
+      structuralUniformity +
+      genericPhrasing +
+      (100 - specificity) +
+      (100 - authorialJudgment) +
+      (100 - informationHierarchy) +
+      (100 - voiceOwnership) +
+      (100 - informationCompression) +
+      (100 - surpriseContrast) +
+      (100 - naturalFlow)) /
+      10
+  );
   const authenticityScore = 100 - aiRisk;
 
   return {
@@ -207,15 +289,32 @@ function heuristicAnalysis(content: string, styleProfile?: StyleProfile | null):
     summary:
       "Local preview scoring found patterns that may read as AI-like. Add an OpenAI API key for deeper paragraph-level analysis and richer style-aligned suggestions.",
     scores: {
+      authorialJudgment,
       predictability,
       structuralUniformity,
       genericPhrasing,
       specificity,
+      informationHierarchy,
       personalVoice,
+      voiceOwnership,
+      informationCompression,
+      surpriseContrast,
+      naturalFlow,
       emotionalTexture: Math.max(25, specificity - 4),
       vocabularyNaturalness: 56,
       sentenceRhythmVariance: rhythm
     },
+    humanAuthorshipEvidence: [
+      "Some sentences attempt to explain significance.",
+      "The draft has a consistent topic focus."
+    ],
+    aiAuthorshipEvidence: [
+      "Several claims use broad framing rather than authorial judgment.",
+      "The structure may distribute ideas too evenly."
+    ],
+    documentEvidence: [
+      "The document would read as more authored if its ideas were prioritized and developed through clearer contrasts."
+    ],
     paragraphs: paragraphs.map((text, index) => {
       const paragraphRisk = Math.max(20, Math.min(88, aiRisk + (text.length > 650 ? 8 : 0) + (genericTerms.some((term) => text.toLowerCase().includes(term)) ? 10 : -4)));
       return {
@@ -224,13 +323,15 @@ function heuristicAnalysis(content: string, styleProfile?: StyleProfile | null):
         risk: paragraphRisk,
         riskLabel: riskLabelFor(paragraphRisk),
         reasons: [
-          "The paragraph may benefit from more concrete details and less generalized phrasing.",
-          "Sentence rhythm and transitions should be checked for natural variation."
+          "The paragraph needs stronger authorial judgment and more concrete grounding.",
+          "Sentence rhythm and information hierarchy should be checked for natural variation."
         ],
         suggestions: [
-          "Add a specific example, constraint, or personal observation.",
-          "Break one polished sentence into a shorter, more direct sentence if that matches your voice."
-        ]
+          "Add a specific example, constraint, or interpretation of what matters.",
+          "Compress one broad idea into a sharper, more owned sentence."
+        ],
+        humanEvidence: ["Consistent topic focus"],
+        aiEvidence: ["Broad framing", "Low specificity"]
       };
     }),
     styleAlignedSuggestions: styleProfile?.styleRules?.length

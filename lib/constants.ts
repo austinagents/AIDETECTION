@@ -25,11 +25,17 @@ export const demoAnalysis: AnalysisResult = {
   summary:
     "The draft has some authentic signals, but several polished, generalized passages would benefit from concrete examples and more personal framing.",
   scores: {
+    authorialJudgment: 52,
     predictability: 72,
     structuralUniformity: 68,
     genericPhrasing: 74,
     specificity: 39,
+    informationHierarchy: 48,
     personalVoice: 44,
+    voiceOwnership: 44,
+    informationCompression: 42,
+    surpriseContrast: 38,
+    naturalFlow: 46,
     emotionalTexture: 41,
     vocabularyNaturalness: 58,
     sentenceRhythmVariance: 46
@@ -38,6 +44,17 @@ export const demoAnalysis: AnalysisResult = {
     "Several transitions are broad and familiar rather than specific to the topic.",
     "Paragraphs follow a similar shape and level of polish.",
     "The writing would benefit from concrete details, memories, examples, or constraints."
+  ],
+  humanAuthorshipEvidence: [
+    "Some claims show an attempt to explain significance.",
+    "The draft has a consistent topic focus."
+  ],
+  aiAuthorshipEvidence: [
+    "Several ideas are weighted evenly instead of prioritized.",
+    "The writing relies on broad summary language."
+  ],
+  documentEvidence: [
+    "The document would feel more authored if the argument developed through clearer choices and contrasts."
   ],
   paragraphs: [],
   revisionStrategy: [

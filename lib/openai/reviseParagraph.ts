@@ -10,12 +10,19 @@ export async function reviseParagraph(input: {
   paragraph: string;
   revisionType: RevisionType;
   styleProfile?: StyleProfile | null;
+  evaluatorFeedback?: {
+    remainingHumanEvidenceMissing?: string[];
+    remainingAIEvidencePresent?: string[];
+    priorRevision?: string;
+  };
 }) {
   const client = getOpenAIClient();
   if (!client) {
     return {
       revisedText: localRevision(input.paragraph, input.revisionType),
-      explanation: "Local preview suggestion. Add an OpenAI API key for deeper style-aware revision."
+      explanation: "Local preview suggestion. Add an OpenAI API key for deeper style-aware revision.",
+      changes: ["Added clearer authorial judgment", "Increased specificity", "Improved sentence flow"],
+      remainingIssues: ["Needs stronger evidence from the full authorship model"]
     };
   }
 
@@ -28,7 +35,7 @@ export async function reviseParagraph(input: {
         {
           role: "system",
           content:
-            "You provide explainable writing revision suggestions. Do not make evasion-related claims. Preserve meaning. Return strict JSON only."
+            "You are an authorship evidence optimizer. Improve paragraphs by increasing Human Authorship Evidence and decreasing AI Authorship Evidence. This is not a grammar, quality, or readability task. Do not make evasion-related claims. Preserve meaning, factual boundaries, and user intent. Return strict JSON only."
         },
         {
           role: "user",
@@ -36,25 +43,48 @@ export async function reviseParagraph(input: {
 
 Request: ${input.revisionType}
 Style profile: ${input.styleProfile ? JSON.stringify(input.styleProfile) : "No profile available"}
+Evaluator feedback from prior attempt: ${input.evaluatorFeedback ? JSON.stringify(input.evaluatorFeedback) : "None"}
 Paragraph: ${input.paragraph}
 
-If the request is "improve", make one intelligent revision that reduces AI-like patterns, increases specificity, reduces generic phrasing, improves sentence variation, and improves readability. If a writing profile is available, also align the revision to that profile. Do not explain these implementation criteria to the user; just provide a clear revised paragraph and a brief explanation of what changed.
+If the request is "improve", follow this process internally:
+1. Analyze the paragraph for Human Authorship Evidence and AI Authorship Evidence.
+2. Identify the strongest weaknesses.
+3. Build a rewrite strategy that reduces generic framing, flat summary tone, predictable structure, low specificity, and over-balanced flow when present.
+4. Increase authorial judgment, specificity, information hierarchy, voice ownership, information compression, surprise/contrast, sentence variation, and natural flow.
+5. Preserve meaning, factual boundaries, and user intent.
+6. Do not preserve structure if a stronger structure is available.
+7. Do not merely replace synonyms.
+8. Restructure aggressively when beneficial.
+9. If evaluator feedback is provided, use it to produce a stronger attempt.
+10. If a writing profile is available, align the revision to that profile as a personal authorship evidence layer.
+
+Do not explain this internal process to the user. Return the strongest revision and concise evidence-based notes.
 
 Return:
 {
   "revisedText": string,
-  "explanation": string
+  "explanation": string,
+  "changes": string[],
+  "remainingIssues": string[]
 }`
         }
       ]
     });
 
     try {
-      return extractJson<{ revisedText: string; explanation: string }>(response.choices[0]?.message?.content ?? "{}");
+      const parsed = extractJson<{ revisedText: string; explanation: string; changes?: string[]; remainingIssues?: string[] }>(response.choices[0]?.message?.content ?? "{}");
+      return {
+        revisedText: parsed.revisedText,
+        explanation: parsed.explanation,
+        changes: normalizeChanges(parsed.changes, parsed.explanation),
+        remainingIssues: normalizeList(parsed.remainingIssues).slice(0, 5)
+      };
     } catch {
       return {
         revisedText: localRevision(input.paragraph, input.revisionType),
-        explanation: "The model response could not be parsed, so this is a local preview suggestion."
+        explanation: "The model response could not be parsed, so this is a local preview suggestion.",
+        changes: ["Added clearer authorial judgment", "Increased specificity", "Improved sentence flow"],
+        remainingIssues: ["Needs stronger evidence from the full authorship model"]
       };
     }
   } catch (error) {
@@ -70,10 +100,26 @@ Return:
 
 function localRevision(paragraph: string, revisionType: RevisionType) {
   const prefix: Record<RevisionType, string> = {
-    improve: "Consider a clearer, more specific version with more natural rhythm:",
+    improve: "Consider a version with stronger authorial judgment, more specific grounding, and more natural rhythm:",
     specific: "Add a named example, moment, number, or constraint:",
     profile: "Adjust the rhythm and wording toward your saved profile:",
     generic: "Replace broad phrasing with plainer, more owned language:"
   };
   return `${prefix[revisionType]} ${paragraph}`;
+}
+
+function normalizeList(items: string[] | undefined) {
+  return Array.isArray(items) ? items.map((item) => item.trim()).filter(Boolean) : [];
+}
+
+function normalizeChanges(changes: string[] | undefined, explanation: string) {
+  if (Array.isArray(changes) && changes.length) {
+    return changes.map((change) => change.trim()).filter(Boolean).slice(0, 5);
+  }
+
+  return explanation
+    .split(/[.;]\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 5);
 }

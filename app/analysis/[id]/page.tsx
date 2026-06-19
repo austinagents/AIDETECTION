@@ -1,23 +1,11 @@
 import { notFound } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { RiskBadge } from "@/components/RiskBadge";
-import { ScoreBar } from "@/components/ScoreBar";
 import { Card } from "@/components/ui";
 import { LOCAL_USER_ID } from "@/lib/constants";
 import { formatScore, normalizeScore } from "@/lib/scoring/normalizeScore";
 import { getStorage } from "@/lib/storage";
-import { Feedback, ParagraphActions } from "./ResultActions";
-
-const scoreLabels = {
-  predictability: "Predictability",
-  structuralUniformity: "Structural uniformity",
-  genericPhrasing: "Generic phrasing",
-  specificity: "Specificity",
-  personalVoice: "Personal voice",
-  emotionalTexture: "Emotional texture",
-  vocabularyNaturalness: "Vocabulary naturalness",
-  sentenceRhythmVariance: "Sentence rhythm variance"
-};
+import { Feedback, RecommendedImprovements } from "./ResultActions";
 
 export default async function AnalysisResultPage({ params }: { params: { id: string } }) {
   const analysis = await getStorage().getAnalysis(LOCAL_USER_ID, params.id);
@@ -25,12 +13,13 @@ export default async function AnalysisResultPage({ params }: { params: { id: str
 
   const result = analysis.result;
   const authenticityScore = normalizeScore(result.overallRisk);
-  const topScores = [
-    ["Predictability", result.scores.predictability],
-    ["Voice", result.scores.personalVoice],
+  const detectionContributors = result.paragraphs.filter((paragraph) => paragraph.risk >= 40).length;
+  const writingCharacteristics = [
     ["Specificity", result.scores.specificity],
-    ["Structure", result.scores.structuralUniformity]
+    ["Sentence Variety", result.scores.sentenceRhythmVariance],
+    ["Personal Voice", result.scores.personalVoice]
   ] as const;
+  const topIssues = result.mainReasons.slice(0, 3);
 
   return (
     <Shell>
@@ -42,7 +31,7 @@ export default async function AnalysisResultPage({ params }: { params: { id: str
         <RiskBadge label={result.riskLabel} />
       </div>
 
-      <section className="mt-8 grid gap-6 xl:grid-cols-[360px_1fr]">
+      <section className="mt-8 grid gap-6 xl:grid-cols-[1fr_360px]">
         <Card className="p-7">
           <p className="text-sm text-slate-400">Authenticity Score</p>
           <div className="mt-4 flex items-end gap-4">
@@ -52,83 +41,46 @@ export default async function AnalysisResultPage({ params }: { params: { id: str
           <p className="mt-6 text-sm leading-6 text-slate-300">{result.summary}</p>
         </Card>
 
-        <div className="grid gap-4 md:grid-cols-4">
-          {topScores.map(([label, value]) => (
-            <Card key={label} className="p-5">
-              <p className="text-sm text-slate-400">{label}</p>
-              <p className="mt-4 text-4xl font-semibold">{formatScore(value)}</p>
-            </Card>
-          ))}
-        </div>
+        <Card className="p-7">
+          <p className="text-sm text-slate-400">Detection Risk</p>
+          <p className="mt-4 text-4xl font-semibold capitalize">{result.riskLabel}</p>
+          <p className="mt-5 text-sm leading-6 text-slate-400">
+            {detectionContributors === 1
+              ? "1 section contributed to this assessment."
+              : `${detectionContributors} sections contributed to this assessment.`}
+          </p>
+        </Card>
       </section>
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
         <Card className="p-6">
-          <h2 className="text-lg font-semibold">Score breakdown</h2>
-          <div className="mt-5 grid gap-5 md:grid-cols-2">
-            {Object.entries(result.scores).map(([key, value]) => (
-              <ScoreBar key={key} label={scoreLabels[key as keyof typeof scoreLabels]} value={value} />
+          <h2 className="text-lg font-semibold">Top Issues</h2>
+          <p className="mt-2 text-sm text-slate-400">Why?</p>
+          <div className="mt-5 space-y-3">
+            {topIssues.map((reason, index) => (
+              <div key={reason} className="rounded-md border border-ink-700 bg-ink-950 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Issue {index + 1}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-300">{reason}</p>
+              </div>
             ))}
           </div>
         </Card>
 
         <Card className="p-6">
-          <h2 className="text-lg font-semibold">Why this was flagged</h2>
-          <div className="mt-4 space-y-3">
-            {result.mainReasons.map((reason) => (
-              <p key={reason} className="rounded-md border border-ink-700 bg-ink-950 p-3 text-sm leading-6 text-slate-300">{reason}</p>
+          <h2 className="text-lg font-semibold">Writing Characteristics</h2>
+          <p className="mt-2 text-sm text-slate-400">Higher is better.</p>
+          <div className="mt-5 space-y-4">
+            {writingCharacteristics.map(([label, value]) => (
+              <div key={label} className="flex items-center justify-between border-b border-ink-700 pb-3 last:border-b-0 last:pb-0">
+                <span className="text-sm text-slate-300">{label}</span>
+                <span className="text-lg font-semibold">{formatScore(value)}</span>
+              </div>
             ))}
           </div>
         </Card>
       </section>
 
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold">Paragraph analysis</h2>
-        <div className="mt-4 space-y-4">
-          {result.paragraphs.map((paragraph) => (
-            <Card key={paragraph.index} className={paragraph.riskLabel === "high" ? "border-risk-high/40 p-6" : "p-6"}>
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-slate-300">Paragraph {paragraph.index + 1}</p>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold">{formatScore(paragraph.risk)}</span>
-                  <RiskBadge label={paragraph.riskLabel} />
-                </div>
-              </div>
-              <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-200">{paragraph.text}</p>
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <div>
-                  <p className="text-sm font-medium text-slate-300">Reasons</p>
-                  <ul className="mt-2 space-y-2 text-sm leading-6 text-slate-400">
-                    {paragraph.reasons.map((reason) => <li key={reason}>{reason}</li>)}
-                  </ul>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-300">Suggestions</p>
-                  <ul className="mt-2 space-y-2 text-sm leading-6 text-slate-400">
-                    {paragraph.suggestions.map((suggestion) => <li key={suggestion}>{suggestion}</li>)}
-                  </ul>
-                </div>
-              </div>
-              <ParagraphActions analysisId={analysis.id} paragraph={paragraph} />
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      <section className="mt-8 grid gap-6 md:grid-cols-2">
-        <Card className="p-6">
-          <h2 className="text-lg font-semibold">Revision strategy</h2>
-          <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-400">
-            {result.revisionStrategy.map((item) => <li key={item}>{item}</li>)}
-          </ul>
-        </Card>
-        <Card className="p-6">
-          <h2 className="text-lg font-semibold">Style-aligned suggestions</h2>
-          <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-400">
-            {result.styleAlignedSuggestions.map((item) => <li key={item}>{item}</li>)}
-          </ul>
-        </Card>
-      </section>
+      <RecommendedImprovements analysisId={analysis.id} paragraphs={result.paragraphs} />
 
       <Feedback analysisId={analysis.id} />
     </Shell>

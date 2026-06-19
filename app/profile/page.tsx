@@ -59,16 +59,25 @@ export default function ProfilePage() {
 
   return (
     <Shell>
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold">Writing Profile</h1>
-          <p className="mt-2 text-sm text-slate-400">A profile of your own tone, rhythm, phrasing, and writing habits.</p>
+      <Card className="p-7">
+        <div className="grid gap-8 xl:grid-cols-[1fr_320px]">
+          <div>
+            <p className="text-sm text-slate-400">Writing Profile</p>
+            <h1 className="mt-2 text-3xl font-semibold">Train Your Writing Profile</h1>
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300">
+              Upload past essays, articles, emails, posts, or documents. Future revisions can sound more like you,
+              preserve your writing style, reduce AI-like patterns, and rewrite content using your voice.
+            </p>
+          </div>
+          <div className="rounded-md border border-ink-700 bg-ink-950 p-5">
+            <p className="text-sm text-slate-400">Strength</p>
+            <p className="mt-2 text-3xl font-semibold">{strength}</p>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              Add several samples across formats to make profile-aligned revisions more reliable.
+            </p>
+          </div>
         </div>
-        <div className="text-right">
-          <p className="text-sm text-slate-400">Strength</p>
-          <p className="text-2xl font-semibold">{strength}</p>
-        </div>
-      </div>
+      </Card>
 
       <section className="mt-8 grid gap-4 md:grid-cols-3">
         <Metric title="Samples" value={samples.length.toString()} />

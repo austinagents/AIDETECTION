@@ -3,11 +3,17 @@ export type Confidence = "low" | "medium" | "high";
 export type ContentType = "Essay" | "Social Post" | "Blog Article" | "Email" | "Personal Statement" | "Other";
 
 export type AnalysisScores = {
+  authorialJudgment: number;
   predictability: number;
   structuralUniformity: number;
   genericPhrasing: number;
   specificity: number;
+  informationHierarchy: number;
   personalVoice: number;
+  voiceOwnership: number;
+  informationCompression: number;
+  surpriseContrast: number;
+  naturalFlow: number;
   emotionalTexture: number;
   vocabularyNaturalness: number;
   sentenceRhythmVariance: number;
@@ -20,6 +26,8 @@ export type ParagraphAnalysis = {
   riskLabel: RiskLabel;
   reasons: string[];
   suggestions: string[];
+  humanEvidence?: string[];
+  aiEvidence?: string[];
 };
 
 export type AnalysisResult = {
@@ -29,6 +37,9 @@ export type AnalysisResult = {
   summary: string;
   scores: AnalysisScores;
   mainReasons: string[];
+  humanAuthorshipEvidence?: string[];
+  aiAuthorshipEvidence?: string[];
+  documentEvidence?: string[];
   paragraphs: ParagraphAnalysis[];
   revisionStrategy: string[];
   styleAlignedSuggestions: string[];
