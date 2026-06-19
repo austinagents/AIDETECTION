@@ -6,15 +6,15 @@ export function isSupabaseConfigured() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
-function client() {
+export function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-async function ensureUser(userId: string) {
-  const supabase = client();
+export async function ensureSupabaseUser(userId: string) {
+  const supabase = getSupabaseClient();
   if (!supabase) return;
   const { error } = await supabase
     .from("users")
@@ -39,7 +39,7 @@ function mapAnalysis(row: any): AnalysisRecord {
 export const supabaseStorage: StorageAdapter | null = isSupabaseConfigured()
   ? {
       async listAnalyses(userId) {
-        const { data, error } = await client()!
+        const { data, error } = await getSupabaseClient()!
           .from("analyses")
           .select("*")
           .eq("user_id", userId)
@@ -49,7 +49,7 @@ export const supabaseStorage: StorageAdapter | null = isSupabaseConfigured()
       },
 
       async getAnalysis(userId, id) {
-        const { data, error } = await client()!
+        const { data, error } = await getSupabaseClient()!
           .from("analyses")
           .select("*")
           .eq("user_id", userId)
@@ -60,8 +60,8 @@ export const supabaseStorage: StorageAdapter | null = isSupabaseConfigured()
       },
 
       async createAnalysis(input: CreateAnalysisInput) {
-        await ensureUser(input.userId);
-        const { data, error } = await client()!
+        await ensureSupabaseUser(input.userId);
+        const { data, error } = await getSupabaseClient()!
           .from("analyses")
           .insert({
             user_id: input.userId,
@@ -79,7 +79,7 @@ export const supabaseStorage: StorageAdapter | null = isSupabaseConfigured()
       },
 
       async listWritingSamples(userId) {
-        const { data, error } = await client()!
+        const { data, error } = await getSupabaseClient()!
           .from("writing_samples")
           .select("*")
           .eq("user_id", userId)
@@ -96,8 +96,8 @@ export const supabaseStorage: StorageAdapter | null = isSupabaseConfigured()
       },
 
       async addWritingSample(input: AddWritingSampleInput) {
-        await ensureUser(input.userId);
-        const { data, error } = await client()!
+        await ensureSupabaseUser(input.userId);
+        const { data, error } = await getSupabaseClient()!
           .from("writing_samples")
           .insert({
             user_id: input.userId,
@@ -119,7 +119,7 @@ export const supabaseStorage: StorageAdapter | null = isSupabaseConfigured()
       },
 
       async getStyleProfile(userId) {
-        const { data, error } = await client()!
+        const { data, error } = await getSupabaseClient()!
           .from("writing_profiles")
           .select("*")
           .eq("user_id", userId)
@@ -138,7 +138,7 @@ export const supabaseStorage: StorageAdapter | null = isSupabaseConfigured()
       },
 
       async upsertStyleProfile(userId, profile, sampleCount) {
-        await ensureUser(userId);
+        await ensureSupabaseUser(userId);
         const existing = await this.getStyleProfile(userId);
         const payload = {
           user_id: userId,
@@ -147,8 +147,8 @@ export const supabaseStorage: StorageAdapter | null = isSupabaseConfigured()
           updated_at: new Date().toISOString()
         };
         const query = existing
-          ? client()!.from("writing_profiles").update(payload).eq("id", existing.id)
-          : client()!.from("writing_profiles").insert(payload);
+          ? getSupabaseClient()!.from("writing_profiles").update(payload).eq("id", existing.id)
+          : getSupabaseClient()!.from("writing_profiles").insert(payload);
         const { data, error } = await query.select("*").single();
         if (error) throw error;
         return {
@@ -162,7 +162,7 @@ export const supabaseStorage: StorageAdapter | null = isSupabaseConfigured()
       },
 
       async createRevision(input: CreateRevisionInput) {
-        const { data, error } = await client()!
+        const { data, error } = await getSupabaseClient()!
           .from("revisions")
           .insert({
             analysis_id: input.analysisId,
@@ -186,8 +186,8 @@ export const supabaseStorage: StorageAdapter | null = isSupabaseConfigured()
       },
 
       async createFeedback(input: CreateFeedbackInput) {
-        await ensureUser(input.userId);
-        const { data, error } = await client()!
+        await ensureSupabaseUser(input.userId);
+        const { data, error } = await getSupabaseClient()!
           .from("feedback")
           .insert({
             analysis_id: input.analysisId,
