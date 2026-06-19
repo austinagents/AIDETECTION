@@ -38,6 +38,8 @@ Request: ${input.revisionType}
 Style profile: ${input.styleProfile ? JSON.stringify(input.styleProfile) : "No profile available"}
 Paragraph: ${input.paragraph}
 
+If the request is "improve", make one intelligent revision that reduces AI-like patterns, increases specificity, reduces generic phrasing, improves sentence variation, and improves readability. If a writing profile is available, also align the revision to that profile. Do not explain these implementation criteria to the user; just provide a clear revised paragraph and a brief explanation of what changed.
+
 Return:
 {
   "revisedText": string,
@@ -68,7 +70,7 @@ Return:
 
 function localRevision(paragraph: string, revisionType: RevisionType) {
   const prefix: Record<RevisionType, string> = {
-    improve: "Consider a more direct version with one concrete detail:",
+    improve: "Consider a clearer, more specific version with more natural rhythm:",
     specific: "Add a named example, moment, number, or constraint:",
     profile: "Adjust the rhythm and wording toward your saved profile:",
     generic: "Replace broad phrasing with plainer, more owned language:"

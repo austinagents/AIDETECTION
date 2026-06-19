@@ -4,21 +4,14 @@ import { useState } from "react";
 import { ThumbsDown, ThumbsUp } from "lucide-react";
 import { ParagraphAnalysis } from "@/lib/types";
 
-const actions = [
-  { label: "Improve this paragraph", type: "improve" },
-  { label: "Make this more specific", type: "specific" },
-  { label: "Make this sound more like my writing profile", type: "profile" },
-  { label: "Reduce generic phrasing", type: "generic" }
-];
-
 export function ParagraphActions({ analysisId, paragraph }: { analysisId: string; paragraph: ParagraphAnalysis }) {
   const [revision, setRevision] = useState("");
   const [explanation, setExplanation] = useState("");
-  const [loading, setLoading] = useState("");
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function revise(type: string) {
-    setLoading(type);
+  async function revise() {
+    setLoading(true);
     setError("");
     try {
       const response = await fetch("/api/revise", {
@@ -28,7 +21,7 @@ export function ParagraphActions({ analysisId, paragraph }: { analysisId: string
           analysisId,
           paragraphIndex: paragraph.index,
           paragraph: paragraph.text,
-          revisionType: type
+          revisionType: "improve"
         })
       });
       const data = await response.json();
@@ -41,23 +34,19 @@ export function ParagraphActions({ analysisId, paragraph }: { analysisId: string
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Revision failed.");
     } finally {
-      setLoading("");
+      setLoading(false);
     }
   }
 
   return (
     <div className="mt-5">
-      <div className="flex flex-wrap gap-2">
-        {actions.map((action) => (
-          <button
-            key={action.type}
-            onClick={() => revise(action.type)}
-            className="rounded-md border border-ink-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-ink-800"
-          >
-            {loading === action.type ? "Working..." : action.label}
-          </button>
-        ))}
-      </div>
+      <button
+        onClick={revise}
+        className="rounded-md border border-ink-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={loading}
+      >
+        {loading ? "Working..." : "Improve this paragraph"}
+      </button>
       {error && <p className="mt-3 text-sm text-[#D98A8D]">{error}</p>}
       {revision && (
         <div className="mt-4 rounded-md border border-ink-700 bg-ink-950 p-4">
