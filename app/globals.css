@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  background: #0f1115;
+}
+
+body {
+  color: #f5f7fa;
+}
+
+::selection {
+  background: rgba(245, 247, 250, 0.18);
+}
+
+textarea,
+input,
+select,
+button {
+  font: inherit;
+}
+
+.document-scroll {
+  scrollbar-color: #333847 transparent;
+}
