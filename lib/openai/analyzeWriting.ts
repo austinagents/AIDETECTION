@@ -41,7 +41,6 @@ Human Authorship Evidence increases authenticity:
 - Specificity: concrete nouns, grounded examples, precise verbs, situational context, tangible details, named concepts.
 - Sentence variation: varied sentence length, varied openings, rhythm changes, emphasis, occasional short sentences, non-symmetrical flow.
 - Information hierarchy: clear primary idea, supporting ideas, contrast, emphasis, hierarchy.
-- Voice ownership: deliberate phrasing, strong framing, clear perspective, intentional wording, sentence-level personality. This does not require first person.
 - Information compression: compact insight, high information density, efficient expression, compressed meaning.
 - Surprise / contrast: unexpected interpretation, original framing, perspective shifts, contrast.
 - Natural flow: natural transitions, conversational logic, authentic rhythm.
@@ -58,7 +57,11 @@ AI Authorship Evidence lowers authenticity:
 Document-level evidence:
 Evaluate theme consistency, recurring priorities, recurring viewpoints, voice consistency, reasoning consistency, argument development, and information progression. Ask whether the document feels like one person making a series of choices, or like independently generated paragraphs.
 
-If a writing profile is provided, include revision suggestions that move the draft closer to that profile without changing the user's meaning.
+Personal Voice is not Human Authorship Evidence. It is identity/profile evidence. Objective human writing can have little or no personal voice. Do not penalize academic, technical, legal, journalistic, historical, or business writing for being impersonal.
+
+If no writing profile is provided, personalVoice and voiceOwnership must not affect authenticityScore, riskLabel, paragraph risk, or revision scoring. Return them as 0 or neutral informational values only.
+
+If a writing profile is provided, personalVoice and voiceOwnership may represent profile alignment / voice match. These remain profile metrics, not detector metrics. Include revision suggestions that move the draft closer to that profile without changing the user's meaning.
 
 Return all scores as integers from 0 to 100. Do not return decimals.
 The top-level "authenticityScore" is positive: higher means stronger Human Authorship Evidence and weaker AI Authorship Evidence.
@@ -258,11 +261,11 @@ function heuristicAnalysis(content: string, styleProfile?: StyleProfile | null):
   const predictability = Math.min(88, 42 + genericHits * 12 + (avgSentenceLength > 22 ? 14 : 0));
   const structuralUniformity = paragraphs.length > 2 ? 58 : 42;
   const genericPhrasing = Math.min(86, 38 + genericHits * 14);
-  const personalVoice = styleProfile && styleProfile.styleRules.length ? 55 : 38;
+  const personalVoice = styleProfile && styleProfile.styleRules.length ? 55 : 0;
   const rhythm = avgSentenceLength > 24 ? 39 : 58;
   const authorialJudgment = Math.max(28, Math.min(78, specificity - genericHits * 4 + (content.includes("because") ? 8 : 0)));
   const informationHierarchy = Math.max(25, Math.min(78, 64 - structuralUniformity / 3 - genericHits * 4));
-  const voiceOwnership = Math.max(24, personalVoice);
+  const voiceOwnership = personalVoice;
   const informationCompression = Math.max(22, Math.min(82, 68 - (avgSentenceLength > 24 ? 18 : 0) - genericHits * 6));
   const surpriseContrast = Math.max(18, Math.min(76, content.match(/\b(but|however|instead|rather|although|while)\b/i) ? specificity + 8 : specificity - 12));
   const naturalFlow = Math.max(26, Math.min(80, rhythm + (genericHits ? -8 : 6)));
@@ -273,11 +276,10 @@ function heuristicAnalysis(content: string, styleProfile?: StyleProfile | null):
       (100 - specificity) +
       (100 - authorialJudgment) +
       (100 - informationHierarchy) +
-      (100 - voiceOwnership) +
       (100 - informationCompression) +
       (100 - surpriseContrast) +
       (100 - naturalFlow)) /
-      10
+      9
   );
   const authenticityScore = 100 - aiRisk;
 

@@ -56,7 +56,8 @@ If the request is "improve", follow this process internally:
 7. Do not merely replace synonyms.
 8. Restructure aggressively when beneficial.
 9. If evaluator feedback is provided, use it to produce a stronger attempt.
-10. If a writing profile is available, align the revision to that profile as a personal authorship evidence layer.
+10. Do not optimize for personal voice unless a writing profile is available.
+11. If a writing profile is available, optionally improve voice match, tone match, vocabulary match, rhythm match, and structure match as a separate profile layer.
 
 Do not explain this internal process to the user. Return the strongest revision and concise evidence-based notes.
 

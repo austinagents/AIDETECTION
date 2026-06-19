@@ -103,7 +103,6 @@ function weakestHumanEvidence(analysis: Awaited<ReturnType<typeof analyzeWriting
     ["authorial judgment", scores.authorialJudgment],
     ["specificity", scores.specificity],
     ["information hierarchy", scores.informationHierarchy],
-    ["voice ownership", scores.voiceOwnership],
     ["information compression", scores.informationCompression],
     ["surprise / contrast", scores.surpriseContrast],
     ["sentence variation", scores.sentenceRhythmVariance],
@@ -122,7 +121,7 @@ function strongestAiEvidence(analysis: Awaited<ReturnType<typeof analyzeWriting>
     ["predictable structure", scores.predictability],
     ["over-balanced structure", scores.structuralUniformity],
     ["low specificity", 100 - scores.specificity],
-    ["flat summary tone", 100 - scores.voiceOwnership],
+    ["flat summary tone", 100 - scores.naturalFlow],
     ["low information compression", 100 - scores.informationCompression],
     ["low surprise / contrast", 100 - scores.surpriseContrast]
   ]

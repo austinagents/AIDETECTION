@@ -8,16 +8,22 @@ import { getStorage } from "@/lib/storage";
 import { Feedback, RecommendedImprovements } from "./ResultActions";
 
 export default async function AnalysisResultPage({ params }: { params: { id: string } }) {
-  const analysis = await getStorage().getAnalysis(LOCAL_USER_ID, params.id);
+  const storage = getStorage();
+  const [analysis, profile] = await Promise.all([
+    storage.getAnalysis(LOCAL_USER_ID, params.id),
+    storage.getStyleProfile(LOCAL_USER_ID)
+  ]);
   if (!analysis) notFound();
 
   const result = analysis.result;
   const authenticityScore = normalizeScore(result.overallRisk);
   const detectionContributors = result.paragraphs.filter((paragraph) => paragraph.risk >= 40).length;
   const writingCharacteristics = [
+    ["Authorial Judgment", result.scores.authorialJudgment],
     ["Specificity", result.scores.specificity],
     ["Sentence Variety", result.scores.sentenceRhythmVariance],
-    ["Personal Voice", result.scores.personalVoice]
+    ["Information Compression", result.scores.informationCompression],
+    ...(profile?.sampleCount ? ([["Voice Match", result.scores.personalVoice]] as const) : [])
   ] as const;
   const topIssues = result.mainReasons.slice(0, 3);
 
