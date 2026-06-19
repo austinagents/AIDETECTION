@@ -29,6 +29,7 @@ export const demoAnalysis: AnalysisResult = {
     predictability: 72,
     structuralUniformity: 68,
     genericPhrasing: 74,
+    professionalizedWritingBias: 70,
     specificity: 39,
     informationHierarchy: 48,
     personalVoice: 44,
@@ -51,7 +52,8 @@ export const demoAnalysis: AnalysisResult = {
   ],
   aiAuthorshipEvidence: [
     "Several ideas are weighted evenly instead of prioritized.",
-    "The writing relies on broad summary language."
+    "The writing relies on broad summary language.",
+    "The tone sounds more professionally polished than the context requires."
   ],
   documentEvidence: [
     "The document would feel more authored if the argument developed through clearer choices and contrasts."

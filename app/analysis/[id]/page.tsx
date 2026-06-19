@@ -25,7 +25,8 @@ export default async function AnalysisResultPage({ params }: { params: { id: str
     ["Information Compression", result.scores.informationCompression],
     ...(profile?.sampleCount ? ([["Voice Match", result.scores.personalVoice]] as const) : [])
   ] as const;
-  const topIssues = result.mainReasons.slice(0, 3);
+  const topIssues = (result.aiAuthorshipEvidence?.length ? result.aiAuthorshipEvidence : result.mainReasons).slice(0, 3);
+  const humanEvidence = result.humanAuthorshipEvidence?.slice(0, 3) ?? [];
 
   return (
     <Shell>
@@ -72,18 +73,31 @@ export default async function AnalysisResultPage({ params }: { params: { id: str
           </div>
         </Card>
 
-        <Card className="p-6">
-          <h2 className="text-lg font-semibold">Writing Characteristics</h2>
-          <p className="mt-2 text-sm text-slate-400">Higher is better.</p>
-          <div className="mt-5 space-y-4">
-            {writingCharacteristics.map(([label, value]) => (
-              <div key={label} className="flex items-center justify-between border-b border-ink-700 pb-3 last:border-b-0 last:pb-0">
-                <span className="text-sm text-slate-300">{label}</span>
-                <span className="text-lg font-semibold">{formatScore(value)}</span>
+        <div className="space-y-6">
+          <Card className="p-6">
+            <h2 className="text-lg font-semibold">Writing Characteristics</h2>
+            <p className="mt-2 text-sm text-slate-400">Higher is better.</p>
+            <div className="mt-5 space-y-4">
+              {writingCharacteristics.map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between border-b border-ink-700 pb-3 last:border-b-0 last:pb-0">
+                  <span className="text-sm text-slate-300">{label}</span>
+                  <span className="text-lg font-semibold">{formatScore(value)}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {humanEvidence.length > 0 && (
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold">Human Authorship Evidence</h2>
+              <div className="mt-4 space-y-3">
+                {humanEvidence.map((evidence) => (
+                  <p key={evidence} className="text-sm leading-6 text-slate-400">{evidence}</p>
+                ))}
               </div>
-            ))}
-          </div>
-        </Card>
+            </Card>
+          )}
+        </div>
       </section>
 
       <RecommendedImprovements analysisId={analysis.id} paragraphs={result.paragraphs} />

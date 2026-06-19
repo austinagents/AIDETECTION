@@ -35,8 +35,9 @@ export async function POST(request: Request) {
       styleProfile: profile?.profile ?? null
     });
 
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      if (bestAnalysis.overallRisk >= Math.min(95, beforeScore + 12)) break;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const majorEvidence = strongestAiEvidence(bestAnalysis);
+      if (bestAnalysis.overallRisk >= 95 || majorEvidence.length === 0) break;
       const nextRevision = await reviseParagraph({
         paragraph,
         revisionType,
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
         evaluatorFeedback: {
           priorRevision: bestRevision.revisedText,
           remainingHumanEvidenceMissing: weakestHumanEvidence(bestAnalysis),
-          remainingAIEvidencePresent: strongestAiEvidence(bestAnalysis)
+          remainingAIEvidencePresent: majorEvidence
         }
       });
       const nextAnalysis = await analyzeWriting({
@@ -118,6 +119,7 @@ function strongestAiEvidence(analysis: Awaited<ReturnType<typeof analyzeWriting>
   const scores = analysis.scores;
   return [
     ["generic framing", scores.genericPhrasing],
+    ["professionalized writing bias", scores.professionalizedWritingBias],
     ["predictable structure", scores.predictability],
     ["over-balanced structure", scores.structuralUniformity],
     ["low specificity", 100 - scores.specificity],

@@ -49,7 +49,7 @@ Paragraph: ${input.paragraph}
 If the request is "improve", follow this process internally:
 1. Analyze the paragraph for Human Authorship Evidence and AI Authorship Evidence.
 2. Identify the strongest weaknesses.
-3. Build a rewrite strategy that reduces generic framing, flat summary tone, predictable structure, low specificity, and over-balanced flow when present.
+3. Build a rewrite strategy that reduces generic framing, professionalized writing bias, flat summary tone, predictable structure, low specificity, over-balanced flow, textbook cadence, artificial insight framing, and consultant/report-style phrasing when present.
 4. Increase authorial judgment, specificity, information hierarchy, voice ownership, information compression, surprise/contrast, sentence variation, and natural flow.
 5. Preserve meaning, factual boundaries, and user intent.
 6. Do not preserve structure if a stronger structure is available.
@@ -58,6 +58,15 @@ If the request is "improve", follow this process internally:
 9. If evaluator feedback is provided, use it to produce a stronger attempt.
 10. Do not optimize for personal voice unless a writing profile is available.
 11. If a writing profile is available, optionally improve voice match, tone match, vocabulary match, rhythm match, and structure match as a separate profile layer.
+
+Hard revision rules:
+- Never use em dashes.
+- Avoid repeated hyphenated compound constructions.
+- Do not use formulaic contrast templates such as "It is not X. It is Y", "This is not about X. It is about Y", "The real issue is not X, but Y", "Not because of X, but because of Y", or "This was not merely X. It was Y".
+- Avoid generic depth framing such as "At its core", "On a deeper level", "The true significance", and similar artificial insight markers.
+- Avoid generic institutional framing such as "This highlights", "This demonstrates", "This underscores", "This provides insight into", and similar study/report moves unless the source context clearly requires them.
+- Prefer normal human phrasing, direct explanations, concrete but not theatrical examples, natural sentence rhythm, less polished structure, fewer abstract nouns, fewer three-part lists, and fewer professional-report constructions.
+- Do not make the revision poetic, theatrical, overly vivid, or too neatly framed.
 
 Do not explain this internal process to the user. Return the strongest revision and concise evidence-based notes.
 

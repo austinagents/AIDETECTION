@@ -47,12 +47,27 @@ Human Authorship Evidence increases authenticity:
 
 AI Authorship Evidence lowers authenticity:
 - Generic framing: low-information openings, broad introductory claims, generic educational framing, filler context.
+- Professionalized AI Writing Fingerprint: writing sounds like a professionally edited report, consultant summary, academic abstract, textbook explanation, corporate memo, or institutional analysis when the topic, audience, or context does not require that tone.
 - Over-balancing: perfectly balanced clauses, excessive three-part lists, symmetrical sentence structure, evenly weighted information.
 - Abstract language: abstract noun stacking, concept-heavy writing without grounding, generalized claims.
 - Predictable structure: repeated claim / explanation / expansion / conclusion structure.
 - Flat summary tone: encyclopedia voice, informational summary tone, educational overview style, evenly weighted facts.
 - Low specificity: broad claims, generic examples, vague references, placeholder nouns.
 - Template-like transitions: obvious progression, predictable flow, mechanical transitions, essay-template structure.
+
+Professionalized AI Writing Fingerprint is especially important for essays, short answers, general writing, student writing, casual explanatory writing, consumer-facing writing, and simple topic explanations. Do not penalize strong, educated, or formal writing when the context requires it. Penalize mismatch: polished, institutional, study-like, consultant-like, or textbook-like prose that sounds more professionalized than the context calls for.
+
+Evaluate repeated or combined AI-associated fingerprints, not brittle keyword-only matches:
+- Dash dependency: repeated em dashes, dash-like explanatory rhythm, and overused hyphenated compound constructions.
+- Contrast template overuse: formulaic "not X, but Y" or "not about X, it is about Y" structures.
+- Professional study tone: institutional explanatory moves that sound like a whitepaper, study, or academic overview.
+- Artificial insight framing: generic depth markers that create the appearance of insight without adding much meaning.
+- Overly balanced explanations: frequent neat three-part lists and evenly distributed ideas.
+- Institutional noun stacking: high density of abstract nouns without concrete grounding.
+- Consultant / corporate verbs: strategy-document verbs when the context does not call for them.
+- Generic expert voice: everything sounds correct, smooth, certain, and generic, with no local detail or real choice.
+- Textbook summary cadence: broad topic statement, explanatory expansion, social implication, concluding significance statement.
+- Idealized human writing: text that is too neat, too vivid, too clean, or too explanatory.
 
 Document-level evidence:
 Evaluate theme consistency, recurring priorities, recurring viewpoints, voice consistency, reasoning consistency, argument development, and information progression. Ask whether the document feels like one person making a series of choices, or like independently generated paragraphs.
@@ -79,6 +94,7 @@ Return exactly this JSON shape:
     "predictability": number,
     "structuralUniformity": number,
     "genericPhrasing": number,
+    "professionalizedWritingBias": number,
     "specificity": number,
     "informationHierarchy": number,
     "personalVoice": number,
@@ -161,6 +177,7 @@ function normalizeAnalysis(result: AnalysisResult, content: string): AnalysisRes
     result.scores?.predictability,
     result.scores?.structuralUniformity,
     result.scores?.genericPhrasing,
+    result.scores?.professionalizedWritingBias,
     result.scores?.authorialJudgment,
     result.scores?.specificity,
     result.scores?.informationHierarchy,
@@ -187,6 +204,7 @@ function normalizeAnalysis(result: AnalysisResult, content: string): AnalysisRes
     result.scores?.predictability,
     result.scores?.structuralUniformity,
     result.scores?.genericPhrasing,
+    result.scores?.professionalizedWritingBias,
     result.scores?.specificity,
     result.scores?.informationHierarchy,
     result.scores?.personalVoice,
@@ -209,16 +227,17 @@ function normalizeAnalysis(result: AnalysisResult, content: string): AnalysisRes
       predictability: normalizedScores[1],
       structuralUniformity: normalizedScores[2],
       genericPhrasing: normalizedScores[3],
-      specificity: normalizedScores[4],
-      informationHierarchy: normalizedScores[5],
-      personalVoice: normalizedScores[6],
-      voiceOwnership: normalizedScores[7],
-      informationCompression: normalizedScores[8],
-      surpriseContrast: normalizedScores[9],
-      naturalFlow: normalizedScores[10],
-      emotionalTexture: normalizedScores[11],
-      vocabularyNaturalness: normalizedScores[12],
-      sentenceRhythmVariance: normalizedScores[13]
+      professionalizedWritingBias: normalizedScores[4],
+      specificity: normalizedScores[5],
+      informationHierarchy: normalizedScores[6],
+      personalVoice: normalizedScores[7],
+      voiceOwnership: normalizedScores[8],
+      informationCompression: normalizedScores[9],
+      surpriseContrast: normalizedScores[10],
+      naturalFlow: normalizedScores[11],
+      emotionalTexture: normalizedScores[12],
+      vocabularyNaturalness: normalizedScores[13],
+      sentenceRhythmVariance: normalizedScores[14]
     },
     mainReasons: Array.isArray(result.mainReasons) ? result.mainReasons.slice(0, 6) : demoAnalysis.mainReasons,
     humanAuthorshipEvidence: Array.isArray(result.humanAuthorshipEvidence) ? result.humanAuthorshipEvidence.slice(0, 8) : demoAnalysis.humanAuthorshipEvidence,
@@ -261,6 +280,10 @@ function heuristicAnalysis(content: string, styleProfile?: StyleProfile | null):
   const predictability = Math.min(88, 42 + genericHits * 12 + (avgSentenceLength > 22 ? 14 : 0));
   const structuralUniformity = paragraphs.length > 2 ? 58 : 42;
   const genericPhrasing = Math.min(86, 38 + genericHits * 14);
+  const dashSignals = (content.match(/[—–-]/g) ?? []).length;
+  const abstractTerms = ["meaning", "identity", "culture", "society", "humanity", "morality", "civilization", "tradition", "values", "beliefs", "framework", "significance", "relationship", "understanding"];
+  const abstractHits = abstractTerms.filter((term) => content.toLowerCase().includes(term)).length;
+  const professionalizedWritingBias = Math.min(92, 28 + genericHits * 10 + abstractHits * 4 + dashSignals * 6 + (avgSentenceLength > 24 ? 12 : 0));
   const personalVoice = styleProfile && styleProfile.styleRules.length ? 55 : 0;
   const rhythm = avgSentenceLength > 24 ? 39 : 58;
   const authorialJudgment = Math.max(28, Math.min(78, specificity - genericHits * 4 + (content.includes("because") ? 8 : 0)));
@@ -273,13 +296,14 @@ function heuristicAnalysis(content: string, styleProfile?: StyleProfile | null):
     (predictability +
       structuralUniformity +
       genericPhrasing +
+      professionalizedWritingBias +
       (100 - specificity) +
       (100 - authorialJudgment) +
       (100 - informationHierarchy) +
       (100 - informationCompression) +
       (100 - surpriseContrast) +
       (100 - naturalFlow)) /
-      9
+      10
   );
   const authenticityScore = 100 - aiRisk;
 
@@ -295,6 +319,7 @@ function heuristicAnalysis(content: string, styleProfile?: StyleProfile | null):
       predictability,
       structuralUniformity,
       genericPhrasing,
+      professionalizedWritingBias,
       specificity,
       informationHierarchy,
       personalVoice,
@@ -312,7 +337,8 @@ function heuristicAnalysis(content: string, styleProfile?: StyleProfile | null):
     ],
     aiAuthorshipEvidence: [
       "Several claims use broad framing rather than authorial judgment.",
-      "The structure may distribute ideas too evenly."
+      "The structure may distribute ideas too evenly.",
+      "The tone may sound more professionally polished than the context requires."
     ],
     documentEvidence: [
       "The document would read as more authored if its ideas were prioritized and developed through clearer contrasts."
@@ -333,7 +359,7 @@ function heuristicAnalysis(content: string, styleProfile?: StyleProfile | null):
           "Compress one broad idea into a sharper, more owned sentence."
         ],
         humanEvidence: ["Consistent topic focus"],
-        aiEvidence: ["Broad framing", "Low specificity"]
+        aiEvidence: ["Broad framing", "Low specificity", "Professionalized tone"]
       };
     }),
     styleAlignedSuggestions: styleProfile?.styleRules?.length

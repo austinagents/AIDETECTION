@@ -7,6 +7,7 @@ export type AnalysisScores = {
   predictability: number;
   structuralUniformity: number;
   genericPhrasing: number;
+  professionalizedWritingBias: number;
   specificity: number;
   informationHierarchy: number;
   personalVoice: number;
