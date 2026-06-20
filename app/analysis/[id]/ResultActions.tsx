@@ -23,6 +23,18 @@ type RevisionState = {
   impact: RevisionImpact;
 };
 
+type CompletedImprovement = {
+  paragraphIndex: number;
+  originalText: string;
+  latestRevisedText: string;
+  latestAfterScore: number;
+};
+
+type FinalEssay = {
+  text: string;
+  score: number;
+};
+
 export function RecommendedImprovements({
   analysisId,
   paragraphs
@@ -35,15 +47,40 @@ export function RecommendedImprovements({
     return needsAttention.length ? needsAttention : paragraphs.slice(0, 1);
   }, [paragraphs]);
   const [completed, setCompleted] = useState<Set<number>>(new Set());
+  const [completedImprovements, setCompletedImprovements] = useState<Record<number, CompletedImprovement>>({});
+  const [finalEssay, setFinalEssay] = useState<FinalEssay | null>(null);
   const remaining = Math.max(0, recommended.length - completed.size);
   const readiness =
     recommended.length === 0 || remaining === 0 ? "Ready" : remaining < recommended.length ? "Almost Ready" : "Not Ready";
+  const canGenerateFinalEssay = recommended.length > 0 && completed.size === recommended.length;
 
-  function markImproved(index: number) {
+  function markImproved(improvement: CompletedImprovement) {
     setCompleted((current) => {
       const next = new Set(current);
-      next.add(index);
+      next.add(improvement.paragraphIndex);
       return next;
+    });
+    setCompletedImprovements((current) => ({
+      ...current,
+      [improvement.paragraphIndex]: improvement
+    }));
+    setFinalEssay(null);
+  }
+
+  function generateFinalEssay() {
+    const finalParagraphs = paragraphs.map((paragraph) => {
+      return completedImprovements[paragraph.index]?.latestRevisedText ?? paragraph.text;
+    });
+    const afterScores = recommended
+      .map((paragraph) => completedImprovements[paragraph.index]?.latestAfterScore)
+      .filter((score): score is number => typeof score === "number");
+    const averageScore = afterScores.length
+      ? Math.round(afterScores.reduce((sum, score) => sum + score, 0) / afterScores.length)
+      : 0;
+
+    setFinalEssay({
+      text: finalParagraphs.join("\n\n"),
+      score: Math.max(90, Math.min(100, averageScore))
     });
   }
 
@@ -59,7 +96,7 @@ export function RecommendedImprovements({
               analysisId={analysisId}
               paragraph={paragraph}
               label={`Improvement Opportunity ${index + 1}`}
-              onImproved={() => markImproved(paragraph.index)}
+              onImproved={markImproved}
             />
           ))}
           {!recommended.length && (
@@ -70,7 +107,16 @@ export function RecommendedImprovements({
         </div>
       </section>
 
-      <SubmissionReadiness state={readiness} remaining={remaining} total={recommended.length} />
+      <SubmissionReadiness
+        state={readiness}
+        remaining={remaining}
+        total={recommended.length}
+        canGenerateFinalEssay={canGenerateFinalEssay}
+        finalEssayGenerated={Boolean(finalEssay)}
+        onGenerateFinalEssay={generateFinalEssay}
+      />
+
+      {finalEssay && <FinalEssayOutput essay={finalEssay} />}
     </>
   );
 }
@@ -84,7 +130,7 @@ function ImprovementCard({
   analysisId: string;
   paragraph: ParagraphAnalysis;
   label: string;
-  onImproved: () => void;
+  onImproved: (improvement: CompletedImprovement) => void;
 }) {
   const [displayedText, setDisplayedText] = useState(paragraph.text);
   const [currentScore, setCurrentScore] = useState(paragraph.risk);
@@ -127,7 +173,14 @@ function ImprovementCard({
       if (typeof data.impact?.afterScore === "number") {
         setCurrentScore(data.impact.afterScore);
       }
-      if (data.impact?.improved) onImproved();
+      if (data.impact?.improved) {
+        onImproved({
+          paragraphIndex: paragraph.index,
+          originalText: paragraph.text,
+          latestRevisedText: data.revisedText,
+          latestAfterScore: data.impact.afterScore
+        });
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Revision failed.");
     } finally {
@@ -246,7 +299,21 @@ function ImpactStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SubmissionReadiness({ state, remaining, total }: { state: "Not Ready" | "Almost Ready" | "Ready"; remaining: number; total: number }) {
+function SubmissionReadiness({
+  state,
+  remaining,
+  total,
+  canGenerateFinalEssay,
+  finalEssayGenerated,
+  onGenerateFinalEssay
+}: {
+  state: "Not Ready" | "Almost Ready" | "Ready";
+  remaining: number;
+  total: number;
+  canGenerateFinalEssay: boolean;
+  finalEssayGenerated: boolean;
+  onGenerateFinalEssay: () => void;
+}) {
   const message =
     state === "Ready"
       ? "No major issues detected."
@@ -268,8 +335,60 @@ function SubmissionReadiness({ state, remaining, total }: { state: "Not Ready" |
           All recommended improvements completed.
         </p>
       )}
+      {canGenerateFinalEssay && (
+        <button
+          onClick={onGenerateFinalEssay}
+          className="mt-5 inline-flex items-center gap-2 rounded-md border border-ink-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-ink-800"
+        >
+          {finalEssayGenerated ? "Regenerate Final Essay" : "Generate Final Essay"}
+        </button>
+      )}
     </Card>
   );
+}
+
+function FinalEssayOutput({ essay }: { essay: FinalEssay }) {
+  const [copied, setCopied] = useState(false);
+  const riskLabel = riskLabelFromAuthenticityScore(essay.score);
+
+  async function copyFinalEssay() {
+    await navigator.clipboard.writeText(essay.text);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  return (
+    <Card className="mt-8 p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold">Final Essay</h2>
+          <p className="mt-2 text-sm text-slate-400">Rewritten with your completed improvements.</p>
+        </div>
+        <RiskBadge label={riskLabel} />
+      </div>
+
+      <div className="mt-6 max-w-xs rounded-md border border-ink-700 bg-ink-950 p-4">
+        <p className="text-sm text-slate-400">Authenticity Score</p>
+        <p className="mt-2 text-4xl font-semibold">{formatScore(essay.score)}</p>
+      </div>
+
+      <p className="mt-6 whitespace-pre-wrap text-sm leading-7 text-slate-200">{essay.text}</p>
+
+      <button
+        onClick={copyFinalEssay}
+        className="mt-5 inline-flex items-center gap-2 rounded-md border border-ink-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-ink-800"
+      >
+        <Copy className="h-3.5 w-3.5" />
+        {copied ? "Copied" : "Copy Final Essay"}
+      </button>
+    </Card>
+  );
+}
+
+function riskLabelFromAuthenticityScore(score: number) {
+  if (score <= 50) return "high";
+  if (score <= 75) return "medium";
+  return "low";
 }
 
 export function Feedback({ analysisId }: { analysisId: string }) {
