@@ -201,26 +201,50 @@ function normalizeAnalysis(result: AnalysisResult, content: string): AnalysisRes
     mainReasons: Array.isArray(result.mainReasons) ? result.mainReasons.slice(0, 6) : demoAnalysis.mainReasons,
     detectorSignals: detectorSignalsFor(result).slice(0, 8),
     documentEvidence: Array.isArray(result.documentEvidence) ? result.documentEvidence.slice(0, 6) : demoAnalysis.documentEvidence,
-    paragraphs: ((Array.isArray(result.paragraphs) && result.paragraphs.length ? result.paragraphs : paragraphs.map((text, index) => ({
-      index,
-      text,
-      risk: detectorRisk,
-      riskLabel: riskLabelFor(detectorRisk),
-      reasons: ["This paragraph may need review before it can be scored confidently."],
-      suggestions: ["Reduce detector risk signals such as generic framing, academic cadence, and polished summary structure."]
-    }))) as ParagraphAnalysis[]).map((paragraph, index) => {
-      const risk = calibrateDetectorRisk(normalizeScore(paragraph.risk, { scale: scoreScale }), scores, paragraph.text);
-      return {
-        ...paragraph,
-        index: paragraph.index ?? index,
-        risk,
-        riskLabel: riskLabelFor(risk),
-        aiEvidence: Array.isArray(paragraph.aiEvidence) ? paragraph.aiEvidence : []
-      };
+    paragraphs: normalizeParagraphs({
+      localParagraphs: paragraphs,
+      modelParagraphs: Array.isArray(result.paragraphs) ? result.paragraphs : [],
+      detectorRisk,
+      scoreScale,
+      scores
     }),
     revisionStrategy: Array.isArray(result.revisionStrategy) ? result.revisionStrategy : demoAnalysis.revisionStrategy,
     styleAlignedSuggestions: Array.isArray(result.styleAlignedSuggestions) ? result.styleAlignedSuggestions : demoAnalysis.styleAlignedSuggestions
   };
+}
+
+function normalizeParagraphs({
+  localParagraphs,
+  modelParagraphs,
+  detectorRisk,
+  scoreScale,
+  scores
+}: {
+  localParagraphs: string[];
+  modelParagraphs: ParagraphAnalysis[];
+  detectorRisk: number;
+  scoreScale: ReturnType<typeof inferScoreScale>;
+  scores: AnalysisResult["scores"];
+}) {
+  const modelUsesZeroBasedIndex = modelParagraphs.some((paragraph) => paragraph.index === 0);
+  return localParagraphs.map((text, index) => {
+    const modelParagraph = (modelUsesZeroBasedIndex ? modelParagraphs.find((paragraph) => paragraph.index === index) : undefined) ?? modelParagraphs[index];
+    const rawRisk = modelParagraph?.risk ?? detectorRisk;
+    const risk = calibrateDetectorRisk(normalizeScore(rawRisk, { scale: scoreScale }), scores, text);
+    return {
+      index,
+      text,
+      risk,
+      riskLabel: riskLabelFor(risk),
+      reasons: Array.isArray(modelParagraph?.reasons) && modelParagraph.reasons.length
+        ? modelParagraph.reasons
+        : ["This paragraph may contain AI detector risk signals."],
+      suggestions: Array.isArray(modelParagraph?.suggestions) && modelParagraph.suggestions.length
+        ? modelParagraph.suggestions
+        : ["Reduce detector risk signals such as generic framing, academic cadence, and polished summary structure."],
+      aiEvidence: Array.isArray(modelParagraph?.aiEvidence) ? modelParagraph.aiEvidence : []
+    };
+  });
 }
 
 function splitParagraphs(content: string) {
