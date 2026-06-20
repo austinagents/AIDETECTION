@@ -32,10 +32,12 @@ export async function POST(request: Request) {
     const contentType = sourceAnalysis?.contentType ?? "Other";
     const beforeScore = beforeRiskDisplay;
     const originalWordCount = countWords(paragraph);
+    const minWordCount = Math.ceil(originalWordCount * 0.95);
+    const maxWordCount = Math.floor(originalWordCount * 1.3);
     let revision = await reviseParagraph({ paragraph, revisionType, contentType, styleProfile: profile?.profile ?? null });
     let revisedWordCount = countWords(revision.revisedText);
 
-    if (revisedWordCount < originalWordCount) {
+    if (!isWithinRevisionWordRange(revisedWordCount, minWordCount, maxWordCount)) {
       revision = await reviseParagraph({
         paragraph,
         revisionType,
@@ -43,16 +45,18 @@ export async function POST(request: Request) {
         styleProfile: profile?.profile ?? null,
         preserveWordCount: {
           originalWordCount,
-          previousRevisedWordCount: revisedWordCount
+          previousRevisedWordCount: revisedWordCount,
+          minWordCount,
+          maxWordCount
         }
       });
       revisedWordCount = countWords(revision.revisedText);
     }
 
-    if (revisedWordCount < originalWordCount) {
+    if (!isWithinRevisionWordRange(revisedWordCount, minWordCount, maxWordCount)) {
       throw new AppError(
         "VALIDATION_ERROR",
-        "The revised paragraph was shorter than the original, so it was blocked. Try improving it again.",
+        "The revised paragraph changed length too much, so it was blocked. Try improving it again.",
         422
       );
     }
@@ -104,6 +108,10 @@ export async function POST(request: Request) {
 
 function countWords(text: string) {
   return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function isWithinRevisionWordRange(wordCount: number, minWordCount: number, maxWordCount: number) {
+  return wordCount >= minWordCount && wordCount <= maxWordCount;
 }
 
 function strongestAiEvidence(analysis: Awaited<ReturnType<typeof analyzeWriting>>) {

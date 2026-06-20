@@ -19,6 +19,8 @@ export async function reviseParagraph(input: {
   preserveWordCount?: {
     originalWordCount: number;
     previousRevisedWordCount?: number;
+    minWordCount?: number;
+    maxWordCount?: number;
   };
 }) {
   const client = getOpenAIClient();
@@ -53,10 +55,12 @@ Style profile: ${input.styleProfile ? JSON.stringify(input.styleProfile) : "No p
 Evaluator feedback from prior attempt: ${input.evaluatorFeedback ? JSON.stringify(input.evaluatorFeedback) : "None"}
 Word count requirement: ${
             input.preserveWordCount
-              ? `The revised paragraph must be at least ${input.preserveWordCount.originalWordCount} words. The previous revision was ${
+              ? `The revised paragraph must be between ${input.preserveWordCount.minWordCount ?? input.preserveWordCount.originalWordCount} and ${
+                  input.preserveWordCount.maxWordCount ?? Math.ceil(input.preserveWordCount.originalWordCount * 1.3)
+                } words. The original paragraph was ${input.preserveWordCount.originalWordCount} words. The previous revision was ${
                   input.preserveWordCount.previousRevisedWordCount ?? "not counted"
-                } words. Preserve or increase word count.`
-              : "Preserve or increase the original paragraph word count."
+                } words. Preserve semantic coverage and stay within the target length range.`
+              : "Keep the revised paragraph within 95% to 130% of the original paragraph word count."
           }
 Paragraph: ${input.paragraph}
 
@@ -65,13 +69,14 @@ If the request is "improve", follow this process internally:
 2. Identify the strongest risk signals.
 3. Build a rewrite strategy that reduces generic framing, professionalized writing bias, flat summary tone, predictable structure, balanced construction, textbook cadence, artificial insight framing, abstract noun density, institutional language, over-explanation, smooth certainty, and consultant/report-style phrasing when present.
 4. Reduce detector risk by lowering structure symmetry, textbook cadence, academic polish, abstract framing, generic transitions, and repetitive cadence.
-5. Preserve meaning, factual boundaries, and user intent.
+5. Preserve meaning, factual boundaries, user intent, and 100% of the original paragraph's information.
 6. Do not preserve structure if a stronger structure is available.
 7. Do not merely replace synonyms.
 8. Restructure aggressively when beneficial.
 9. If evaluator feedback is provided, use it to produce a stronger attempt.
 10. Do not optimize for personal voice, creativity, originality, insight, or readability.
-11. Preserve or increase word count. Do not summarize, condense, shorten, remove supporting details, collapse ideas, or reduce paragraph length. If removing AI-like phrasing reduces words, replace it with concrete, context-appropriate detail.
+11. Preserve semantic coverage. For every major idea, example, explanation, fact, and supporting detail in the original paragraph, include a corresponding idea in the revision.
+12. Keep the revision within 95% to 130% of the original word count. Do not summarize, condense, remove supporting details, collapse ideas, or reduce paragraph length. If removing AI-like phrasing reduces words, replace it with concrete, context-appropriate detail.
 
 Essay-specific target:
 If Content type is "Essay", the revision must reduce detector risk while keeping an essay-appropriate tone. Keep moderate formality. Do not make it casual, childish, blog-like, poetic, theatrical, corporate, or textbook-like. It should not read like a Wikipedia overview, study abstract, institutional summary, or AI-polished student response.
@@ -96,7 +101,8 @@ Hard revision rules:
 - Do not make the revision poetic, theatrical, overly vivid, or too neatly framed.
 - Do not force surprise, creativity, personal voice, dramatic examples, polished academic interpretation, or fake insight.
 - A simple average paragraph is acceptable if it sounds naturally human and avoids major AI-writing fingerprints.
-- The revised paragraph must preserve or increase word count. Do not shorten the paragraph.
+- The revised paragraph must preserve semantic coverage and stay within 95% to 130% of the original word count.
+- The task is transformation, not reduction. Rewrite sentences, cadence, structure, wording, and transitions without removing ideas, examples, explanations, facts, or supporting detail.
 
 What Changed must describe AI-fingerprint reduction, not writing-quality improvement. Good examples: "Removed broad textbook-style opening", "Replaced inflated academic phrasing with normal essay language", "Reduced abstract noun stacking", "Broke the predictable claim/explanation/significance structure", "Removed professionalized report-style phrasing", "Kept the paragraph formal enough for an essay without sounding institutional".
 
