@@ -16,6 +16,10 @@ export async function reviseParagraph(input: {
     remainingAIEvidencePresent?: string[];
     priorRevision?: string;
   };
+  preserveWordCount?: {
+    originalWordCount: number;
+    previousRevisedWordCount?: number;
+  };
 }) {
   const client = getOpenAIClient();
   const contentType = input.contentType ?? "Other";
@@ -47,6 +51,13 @@ Request: ${input.revisionType}
 Content type: ${contentType}
 Style profile: ${input.styleProfile ? JSON.stringify(input.styleProfile) : "No profile available"}
 Evaluator feedback from prior attempt: ${input.evaluatorFeedback ? JSON.stringify(input.evaluatorFeedback) : "None"}
+Word count requirement: ${
+            input.preserveWordCount
+              ? `The revised paragraph must be at least ${input.preserveWordCount.originalWordCount} words. The previous revision was ${
+                  input.preserveWordCount.previousRevisedWordCount ?? "not counted"
+                } words. Preserve or increase word count.`
+              : "Preserve or increase the original paragraph word count."
+          }
 Paragraph: ${input.paragraph}
 
 If the request is "improve", follow this process internally:
@@ -60,6 +71,7 @@ If the request is "improve", follow this process internally:
 8. Restructure aggressively when beneficial.
 9. If evaluator feedback is provided, use it to produce a stronger attempt.
 10. Do not optimize for personal voice, creativity, originality, insight, or readability.
+11. Preserve or increase word count. Do not summarize, condense, shorten, remove supporting details, collapse ideas, or reduce paragraph length. If removing AI-like phrasing reduces words, replace it with concrete, context-appropriate detail.
 
 Essay-specific target:
 If Content type is "Essay", the revision must reduce detector risk while keeping an essay-appropriate tone. Keep moderate formality. Do not make it casual, childish, blog-like, poetic, theatrical, corporate, or textbook-like. It should not read like a Wikipedia overview, study abstract, institutional summary, or AI-polished student response.
@@ -84,6 +96,7 @@ Hard revision rules:
 - Do not make the revision poetic, theatrical, overly vivid, or too neatly framed.
 - Do not force surprise, creativity, personal voice, dramatic examples, polished academic interpretation, or fake insight.
 - A simple average paragraph is acceptable if it sounds naturally human and avoids major AI-writing fingerprints.
+- The revised paragraph must preserve or increase word count. Do not shorten the paragraph.
 
 What Changed must describe AI-fingerprint reduction, not writing-quality improvement. Good examples: "Removed broad textbook-style opening", "Replaced inflated academic phrasing with normal essay language", "Reduced abstract noun stacking", "Broke the predictable claim/explanation/significance structure", "Removed professionalized report-style phrasing", "Kept the paragraph formal enough for an essay without sounding institutional".
 

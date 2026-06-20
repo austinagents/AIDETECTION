@@ -31,7 +31,32 @@ export async function POST(request: Request) {
       : null;
     const contentType = sourceAnalysis?.contentType ?? "Other";
     const beforeScore = beforeRiskDisplay;
-    const revision = await reviseParagraph({ paragraph, revisionType, contentType, styleProfile: profile?.profile ?? null });
+    const originalWordCount = countWords(paragraph);
+    let revision = await reviseParagraph({ paragraph, revisionType, contentType, styleProfile: profile?.profile ?? null });
+    let revisedWordCount = countWords(revision.revisedText);
+
+    if (revisedWordCount < originalWordCount) {
+      revision = await reviseParagraph({
+        paragraph,
+        revisionType,
+        contentType,
+        styleProfile: profile?.profile ?? null,
+        preserveWordCount: {
+          originalWordCount,
+          previousRevisedWordCount: revisedWordCount
+        }
+      });
+      revisedWordCount = countWords(revision.revisedText);
+    }
+
+    if (revisedWordCount < originalWordCount) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "The revised paragraph was shorter than the original, so it was blocked. Try improving it again.",
+        422
+      );
+    }
+
     const revisedAnalysis = await analyzeWriting({
       title: "Revised paragraph",
       content: revision.revisedText,
@@ -75,6 +100,10 @@ export async function POST(request: Request) {
     const response = publicError(isAppError(error) ? error : error);
     return NextResponse.json(response.body, { status: response.status });
   }
+}
+
+function countWords(text: string) {
+  return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
 function strongestAiEvidence(analysis: Awaited<ReturnType<typeof analyzeWriting>>) {
