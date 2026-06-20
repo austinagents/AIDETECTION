@@ -44,7 +44,6 @@ export async function POST(request: Request) {
         styleProfile: profile?.profile ?? null,
         evaluatorFeedback: {
           priorRevision: bestRevision.revisedText,
-          remainingHumanEvidenceMissing: weakestHumanEvidence(bestAnalysis),
           remainingAIEvidencePresent: majorEvidence
         }
       });
@@ -98,37 +97,20 @@ export async function POST(request: Request) {
   }
 }
 
-function weakestHumanEvidence(analysis: Awaited<ReturnType<typeof analyzeWriting>>) {
-  const scores = analysis.scores;
-  return [
-    ["authorial judgment", scores.authorialJudgment],
-    ["specificity", scores.specificity],
-    ["information hierarchy", scores.informationHierarchy],
-    ["information compression", scores.informationCompression],
-    ["surprise / contrast", scores.surpriseContrast],
-    ["sentence variation", scores.sentenceRhythmVariance],
-    ["natural flow", scores.naturalFlow]
-  ]
-    .filter(([, score]) => Number(score) < 70)
-    .sort((a, b) => Number(a[1]) - Number(b[1]))
-    .slice(0, 4)
-    .map(([label]) => String(label));
-}
-
 function strongestAiEvidence(analysis: Awaited<ReturnType<typeof analyzeWriting>>) {
   const scores = analysis.scores;
-  return [
-    ["generic framing", scores.genericPhrasing],
-    ["professionalized writing bias", scores.professionalizedWritingBias],
-    ["predictable structure", scores.predictability],
-    ["over-balanced structure", scores.structuralUniformity],
-    ["low specificity", 100 - scores.specificity],
-    ["flat summary tone", 100 - scores.naturalFlow],
-    ["low information compression", 100 - scores.informationCompression],
-    ["low surprise / contrast", 100 - scores.surpriseContrast]
-  ]
-    .filter(([, score]) => Number(score) >= 35)
-    .sort((a, b) => Number(b[1]) - Number(a[1]))
+  const issues = [
+    scores.professionalizedWritingBias >= 50 ? ["professionalized writing bias", scores.professionalizedWritingBias] : null,
+    scores.genericPhrasing >= 50 ? ["generic framing", scores.genericPhrasing] : null,
+    scores.predictability >= 62 ? ["predictable structure", scores.predictability] : null,
+    scores.structuralUniformity >= 66 ? ["over-balanced structure", scores.structuralUniformity] : null,
+    scores.specificity <= 45 ? ["low concrete grounding", 100 - scores.specificity] : null,
+    scores.naturalFlow <= 45 ? ["mechanical flow", 100 - scores.naturalFlow] : null,
+    scores.informationCompression <= 42 ? ["over-expanded or abstract phrasing", 100 - scores.informationCompression] : null
+  ].filter((issue): issue is [string, number] => Boolean(issue));
+
+  return issues
+    .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
-    .map(([label]) => String(label));
+    .map(([label]) => label);
 }

@@ -19,7 +19,7 @@ export default async function AnalysisResultPage({ params }: { params: { id: str
   const authenticityScore = normalizeScore(result.overallRisk);
   const detectionContributors = result.paragraphs.filter((paragraph) => paragraph.risk >= 40).length;
   const writingCharacteristics = [
-    ["Authorial Judgment", result.scores.authorialJudgment],
+    ["Decision Making", result.scores.authorialJudgment],
     ["Specificity", result.scores.specificity],
     ["Sentence Variety", result.scores.sentenceRhythmVariance],
     ["Information Compression", result.scores.informationCompression],

@@ -21,8 +21,8 @@ export async function reviseParagraph(input: {
     return {
       revisedText: localRevision(input.paragraph, input.revisionType),
       explanation: "Local preview suggestion. Add an OpenAI API key for deeper style-aware revision.",
-      changes: ["Added clearer authorial judgment", "Increased specificity", "Improved sentence flow"],
-      remainingIssues: ["Needs stronger evidence from the full authorship model"]
+      changes: ["Reduced AI-style phrasing", "Used plainer wording", "Improved natural flow"],
+      remainingIssues: ["May still contain unresolved AI-writing fingerprints"]
     };
   }
 
@@ -35,7 +35,7 @@ export async function reviseParagraph(input: {
         {
           role: "system",
           content:
-            "You are an authorship evidence optimizer. Improve paragraphs by increasing Human Authorship Evidence and decreasing AI Authorship Evidence. This is not a grammar, quality, or readability task. Do not make evasion-related claims. Preserve meaning, factual boundaries, and user intent. Return strict JSON only."
+            "You are an authorship evidence optimizer. Improve paragraphs by making them look more naturally human-written for their context and by decreasing visible AI-writing fingerprints. This is not a grammar, quality, creativity, originality, polish, or readability task. Do not make evasion-related claims. Preserve meaning, factual boundaries, and user intent. Return strict JSON only."
         },
         {
           role: "user",
@@ -47,10 +47,10 @@ Evaluator feedback from prior attempt: ${input.evaluatorFeedback ? JSON.stringif
 Paragraph: ${input.paragraph}
 
 If the request is "improve", follow this process internally:
-1. Analyze the paragraph for Human Authorship Evidence and AI Authorship Evidence.
+1. Analyze whether the paragraph looks like something a normal person would naturally write in this context.
 2. Identify the strongest weaknesses.
 3. Build a rewrite strategy that reduces generic framing, professionalized writing bias, flat summary tone, predictable structure, low specificity, over-balanced flow, textbook cadence, artificial insight framing, and consultant/report-style phrasing when present.
-4. Increase authorial judgment, specificity, information hierarchy, voice ownership, information compression, surprise/contrast, sentence variation, and natural flow.
+4. Increase natural human likelihood by using plain human phrasing, context-appropriate tone, normal sentence rhythm, concrete grounding where useful, and less institutional structure.
 5. Preserve meaning, factual boundaries, and user intent.
 6. Do not preserve structure if a stronger structure is available.
 7. Do not merely replace synonyms.
@@ -67,6 +67,8 @@ Hard revision rules:
 - Avoid generic institutional framing such as "This highlights", "This demonstrates", "This underscores", "This provides insight into", and similar study/report moves unless the source context clearly requires them.
 - Prefer normal human phrasing, direct explanations, concrete but not theatrical examples, natural sentence rhythm, less polished structure, fewer abstract nouns, fewer three-part lists, and fewer professional-report constructions.
 - Do not make the revision poetic, theatrical, overly vivid, or too neatly framed.
+- Do not force surprise, creativity, personal voice, dramatic examples, polished academic interpretation, or fake insight.
+- A simple average paragraph is acceptable if it sounds naturally human and avoids major AI-writing fingerprints.
 
 Do not explain this internal process to the user. Return the strongest revision and concise evidence-based notes.
 
@@ -93,8 +95,8 @@ Return:
       return {
         revisedText: localRevision(input.paragraph, input.revisionType),
         explanation: "The model response could not be parsed, so this is a local preview suggestion.",
-        changes: ["Added clearer authorial judgment", "Increased specificity", "Improved sentence flow"],
-        remainingIssues: ["Needs stronger evidence from the full authorship model"]
+        changes: ["Reduced AI-style phrasing", "Used plainer wording", "Improved natural flow"],
+        remainingIssues: ["May still contain unresolved AI-writing fingerprints"]
       };
     }
   } catch (error) {
@@ -110,7 +112,7 @@ Return:
 
 function localRevision(paragraph: string, revisionType: RevisionType) {
   const prefix: Record<RevisionType, string> = {
-    improve: "Consider a version with stronger authorial judgment, more specific grounding, and more natural rhythm:",
+    improve: "Consider a plainer, more naturally human version:",
     specific: "Add a named example, moment, number, or constraint:",
     profile: "Adjust the rhythm and wording toward your saved profile:",
     generic: "Replace broad phrasing with plainer, more owned language:"

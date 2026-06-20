@@ -23,7 +23,7 @@ export const demoAnalysis: AnalysisResult = {
   confidence: "medium",
   riskLabel: "medium",
   summary:
-    "The draft has some authentic signals, but several polished, generalized passages would benefit from concrete examples and more personal framing.",
+    "The draft has some natural human signals, but several polished, generalized passages may read as AI-like for the context.",
   scores: {
     authorialJudgment: 52,
     predictability: 72,
@@ -44,10 +44,10 @@ export const demoAnalysis: AnalysisResult = {
   mainReasons: [
     "Several transitions are broad and familiar rather than specific to the topic.",
     "Paragraphs follow a similar shape and level of polish.",
-    "The writing would benefit from concrete details, memories, examples, or constraints."
+    "The writing would benefit from plainer, more context-appropriate phrasing and concrete grounding."
   ],
   humanAuthorshipEvidence: [
-    "Some claims show an attempt to explain significance.",
+    "Some claims show ordinary authorial choices.",
     "The draft has a consistent topic focus."
   ],
   aiAuthorshipEvidence: [
@@ -56,13 +56,13 @@ export const demoAnalysis: AnalysisResult = {
     "The tone sounds more professionally polished than the context requires."
   ],
   documentEvidence: [
-    "The document would feel more authored if the argument developed through clearer choices and contrasts."
+    "The document would feel more naturally human if it used less professionalized framing."
   ],
   paragraphs: [],
   revisionStrategy: [
-    "Replace broad claims with specific scenes, numbers, names, or examples.",
-    "Vary sentence openings and paragraph lengths.",
-    "Add one or two details that only the writer would naturally include."
+    "Replace broad professionalized phrasing with plainer wording.",
+    "Reduce formulaic structure and overly balanced phrasing.",
+    "Add concrete grounding where the writing feels abstract."
   ],
   styleAlignedSuggestions: [
     "Save writing samples to receive suggestions that better match your own voice."

@@ -1,5 +1,6 @@
 import { demoAnalysis } from "@/lib/constants";
 import { AnalysisResult } from "@/lib/types";
+import { calibrateAuthenticityScore } from "./calibrateAuthenticity";
 import { inferScoreScale, normalizeScore, normalizeScoreGroup, riskLabelFromAuthenticityScore, riskLabelFromRiskScore } from "./normalizeScore";
 
 export function normalizeAnalysisResult(result: AnalysisResult): AnalysisResult {
@@ -30,7 +31,6 @@ export function normalizeAnalysisResult(result: AnalysisResult): AnalysisResult 
     result.scores?.sentenceRhythmVariance,
     ...(Array.isArray(result.paragraphs) ? result.paragraphs.map((paragraph) => paragraph.risk) : [])
   ]);
-  const authenticityScore = normalizeScore(raw.authenticityScore ?? raw.overallAuthenticity ?? raw.authenticity ?? result.overallRisk, { scale });
   const scores = normalizeScoreGroup([
     result.scores?.authorialJudgment,
     result.scores?.predictability,
@@ -48,6 +48,27 @@ export function normalizeAnalysisResult(result: AnalysisResult): AnalysisResult 
     result.scores?.vocabularyNaturalness,
     result.scores?.sentenceRhythmVariance
   ]);
+  const normalizedScores = {
+    authorialJudgment: scores[0],
+    predictability: scores[1],
+    structuralUniformity: scores[2],
+    genericPhrasing: scores[3],
+    professionalizedWritingBias: scores[4],
+    specificity: scores[5],
+    informationHierarchy: scores[6],
+    personalVoice: scores[7],
+    voiceOwnership: scores[8],
+    informationCompression: scores[9],
+    surpriseContrast: scores[10],
+    naturalFlow: scores[11],
+    emotionalTexture: scores[12],
+    vocabularyNaturalness: scores[13],
+    sentenceRhythmVariance: scores[14]
+  };
+  const authenticityScore = calibrateAuthenticityScore(
+    normalizeScore(raw.authenticityScore ?? raw.overallAuthenticity ?? raw.authenticity ?? result.overallRisk, { scale }),
+    normalizedScores
+  );
 
   return {
     ...result,
@@ -55,23 +76,7 @@ export function normalizeAnalysisResult(result: AnalysisResult): AnalysisResult 
     confidence: result.confidence ?? "medium",
     riskLabel: riskLabelFromAuthenticityScore(authenticityScore),
     summary: result.summary ?? demoAnalysis.summary,
-    scores: {
-      authorialJudgment: scores[0],
-      predictability: scores[1],
-      structuralUniformity: scores[2],
-      genericPhrasing: scores[3],
-      professionalizedWritingBias: scores[4],
-      specificity: scores[5],
-      informationHierarchy: scores[6],
-      personalVoice: scores[7],
-      voiceOwnership: scores[8],
-      informationCompression: scores[9],
-      surpriseContrast: scores[10],
-      naturalFlow: scores[11],
-      emotionalTexture: scores[12],
-      vocabularyNaturalness: scores[13],
-      sentenceRhythmVariance: scores[14]
-    },
+    scores: normalizedScores,
     mainReasons: Array.isArray(result.mainReasons) ? result.mainReasons : [],
     humanAuthorshipEvidence: Array.isArray(result.humanAuthorshipEvidence) ? result.humanAuthorshipEvidence : [],
     aiAuthorshipEvidence: Array.isArray(result.aiAuthorshipEvidence) ? result.aiAuthorshipEvidence : [],
