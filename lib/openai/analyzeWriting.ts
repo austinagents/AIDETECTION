@@ -38,7 +38,7 @@ How likely is it that a normal person would naturally produce this exact writing
 
 Do not ask whether the writing is excellent. Average, plain, boring, direct, uneven, simple, or repetitive writing can be highly authentic if it looks naturally human-authored and lacks major AI-writing fingerprints.
 
-Human Authorship Evidence increases authenticity:
+Human Authorship Evidence can support authenticity, but it must not dominate the score:
 - Human decision-making: basic choices about what information matters, what order ideas belong in, what gets emphasized, and what gets left alone. Do not require advanced insight, originality, creativity, distinctive perspective, or polished academic judgment.
 - Specificity: concrete nouns, grounded examples, precise verbs, situational context, tangible details, named concepts.
 - Sentence variation: normal human rhythm, imperfect variation, varied openings, and non-mechanical flow.
@@ -46,6 +46,9 @@ Human Authorship Evidence increases authenticity:
 - Information compression: avoiding unnecessary expansion and repeated explanation. Do not require clever compression or poetic concision.
 - Natural flow: natural transitions, conversational logic, authentic rhythm.
 - Context-appropriate plainness: direct, normal phrasing that fits the assignment or audience.
+
+Important calibration rule:
+Modern AI models routinely produce specific examples, strong organization, coherence, logical progression, clear information hierarchy, and good compression. Treat those qualities as supporting or neutral evidence, not primary evidence of human authorship. Do not let competence offset major AI-writing fingerprints.
 
 AI Authorship Evidence lowers authenticity:
 - Generic framing: low-information openings, broad introductory claims, generic educational framing, filler context.
@@ -56,6 +59,10 @@ AI Authorship Evidence lowers authenticity:
 - Flat summary tone: encyclopedia voice, informational summary tone, educational overview style, evenly weighted facts.
 - Low specificity: broad claims, generic examples, vague references, placeholder nouns.
 - Template-like transitions: obvious progression, predictable flow, mechanical transitions, essay-template structure.
+- Textbook cadence: repeated broad claim, explanation, and significance pattern across paragraphs.
+- Essay template structure: introduction, definition, historical context, examples, interpretation, conclusion. Perfect academic structure is neutral or slightly AI-leaning, not human evidence.
+- Predictable expansion pattern: opening a topic, explaining why it matters, describing what it explains, and concluding with social or cultural significance.
+- Excessive confidence: smooth factual explanation across a whole document without uncertainty, limits, or source-aware language.
 
 Professionalized AI Writing Fingerprint is especially important for essays, short answers, general writing, student writing, casual explanatory writing, consumer-facing writing, and simple topic explanations. Do not penalize strong, educated, or formal writing when the context requires it. Penalize mismatch: polished, institutional, study-like, consultant-like, or textbook-like prose that sounds more professionalized than the context calls for.
 
@@ -81,6 +88,8 @@ Score calibration:
 - 0-50: Strong AI-associated writing behavior.
 
 Do not hold a score below 85 because the writing lacks surprise, originality, personal voice, advanced interpretation, or impressive style. If major AI fingerprints are absent, the score should be high even when the writing is simple.
+
+If major AI fingerprints are present repeatedly, keep authenticity materially suppressed even when the essay is organized, specific, coherent, or well compressed. A polished textbook-style essay with strong structure can still be low authenticity.
 
 Document-level evidence:
 Evaluate theme consistency, recurring priorities, reasoning consistency, argument development, and information progression. Ask whether the document feels like one person naturally working through a topic, or like independently generated paragraphs. Do not reward polish for its own sake.
@@ -247,7 +256,7 @@ function normalizeAnalysis(result: AnalysisResult, content: string): AnalysisRes
     vocabularyNaturalness: normalizedScores[13],
     sentenceRhythmVariance: normalizedScores[14]
   };
-  const authenticityScore = calibrateAuthenticityScore(rawAuthenticityScore, scores);
+  const authenticityScore = calibrateAuthenticityScore(rawAuthenticityScore, scores, content);
 
   return {
     ...result,
@@ -290,22 +299,29 @@ function heuristicAnalysis(content: string, styleProfile?: StyleProfile | null):
   const paragraphs = splitParagraphs(content);
   const words = content.split(/\s+/).filter(Boolean);
   const lowerContent = content.toLowerCase();
-  const genericTerms = ["moreover", "furthermore", "in conclusion", "it is important", "overall", "significant", "various"];
-  const professionalTerms = ["framework", "significance", "underscores", "demonstrates", "highlights", "provides insight", "serves as", "broader pattern", "foundational", "constructed", "transmitted", "facilitate", "optimize", "leverage"];
+  const genericTerms = ["moreover", "furthermore", "in conclusion", "it is important", "overall", "significant", "various", "throughout history", "for thousands of years", "one of humanity", "the origins of"];
+  const professionalTerms = ["framework", "significance", "underscores", "demonstrates", "highlights", "provides insight", "serves as", "broader pattern", "foundational", "constructed", "transmitted", "facilitate", "optimize", "leverage", "phenomena", "interpret", "shaped society", "cultural identity"];
   const genericHits = genericTerms.filter((term) => lowerContent.includes(term)).length;
   const professionalHits = professionalTerms.filter((term) => lowerContent.includes(term)).length;
   const sentenceCount = Math.max(1, content.split(/[.!?]+/).filter((item) => item.trim()).length);
   const avgSentenceLength = words.length / sentenceCount;
-  const specificity = clampScore(78 - genericHits * 7 - professionalHits * 2 - (avgSentenceLength > 30 ? 8 : 0));
-  const predictability = clampScore(26 + genericHits * 10 + professionalHits * 4 + (avgSentenceLength > 26 ? 10 : 0));
-  const structuralUniformity = clampScore(28 + (paragraphs.length > 2 ? 12 : 0) + (avgSentenceLength > 28 ? 8 : 0));
-  const genericPhrasing = clampScore(22 + genericHits * 13 + professionalHits * 3);
+  const specificity = clampScore(78 - genericHits * 4 - professionalHits * 1.5 - (avgSentenceLength > 30 ? 4 : 0));
+  const predictability = clampScore(32 + genericHits * 10 + professionalHits * 5 + (avgSentenceLength > 26 ? 10 : 0));
+  const structuralUniformity = clampScore(34 + (paragraphs.length > 2 ? 18 : 0) + (avgSentenceLength > 28 ? 8 : 0));
+  const genericPhrasing = clampScore(28 + genericHits * 13 + professionalHits * 4);
   const dashSignals = (content.match(/[—–]/g) ?? []).length + Math.max(0, (content.match(/\b\w+-\w+\b/g) ?? []).length - 1);
-  const abstractTerms = ["meaning", "identity", "culture", "society", "humanity", "morality", "civilization", "tradition", "values", "beliefs", "framework", "significance", "relationship", "understanding"];
+  const abstractTerms = ["meaning", "identity", "existence", "consciousness", "humanity", "society", "morality", "guidance", "understanding", "cosmos", "culture", "civilization", "tradition", "values", "beliefs", "framework", "significance", "relationship", "phenomena", "interpretation"];
   const abstractHits = abstractTerms.filter((term) => lowerContent.includes(term)).length;
   const balancedListSignals = (content.match(/\b[^,.!?;]+,\s+[^,.!?;]+,\s+(?:and|or)\s+[^,.!?;]+/gi) ?? []).length;
   const contrastTemplateSignals = (content.match(/\bnot\b[^.!?]{0,80}\bbut\b|\bnot\b[^.!?]{0,80}\bit (?:is|was)\b/gi) ?? []).length;
-  const professionalizedWritingBias = clampScore(18 + genericHits * 8 + professionalHits * 8 + abstractHits * 3 + dashSignals * 7 + balancedListSignals * 6 + contrastTemplateSignals * 8 + (avgSentenceLength > 28 ? 8 : 0));
+  const significanceMarkers = ["this shows", "this demonstrates", "this highlights", "this illustrates", "this reflects", "this underscores", "this reveals", "this suggests", "served as", "provided a way", "helped people understand"];
+  const significanceHits = significanceMarkers.filter((term) => lowerContent.includes(term)).length;
+  const textbookCadence = paragraphs.filter((paragraph) => {
+    const sentenceCount = paragraph.split(/[.!?]+/).filter((item) => item.trim()).length;
+    const paragraphLower = paragraph.toLowerCase();
+    return sentenceCount >= 3 && significanceMarkers.some((term) => paragraphLower.includes(term));
+  }).length;
+  const professionalizedWritingBias = clampScore(22 + genericHits * 10 + professionalHits * 9 + abstractHits * 4 + dashSignals * 7 + balancedListSignals * 7 + contrastTemplateSignals * 8 + significanceHits * 7 + textbookCadence * 12 + (avgSentenceLength > 28 ? 8 : 0));
   const personalVoice = styleProfile && styleProfile.styleRules.length ? 55 : 0;
   const rhythm = clampScore(76 - Math.abs(avgSentenceLength - 17) * 1.6 - genericHits * 4 - professionalHits * 2);
   const authorialJudgment = clampScore(70 - genericHits * 5 - professionalHits * 2 + (/\b(because|so|but|instead|when|after)\b/i.test(content) ? 6 : 0));
@@ -333,13 +349,12 @@ function heuristicAnalysis(content: string, styleProfile?: StyleProfile | null):
     sentenceRhythmVariance
   };
   const fingerprintPenalty =
-    professionalizedWritingBias * 0.32 +
+    professionalizedWritingBias * 0.4 +
     genericPhrasing * 0.24 +
-    predictability * 0.16 +
-    structuralUniformity * 0.1 +
-    Math.max(0, 58 - specificity) * 0.12 +
-    Math.max(0, 58 - naturalFlow) * 0.06;
-  const authenticityScore = calibrateAuthenticityScore(clampScore(100 - fingerprintPenalty), scores);
+    predictability * 0.2 +
+    structuralUniformity * 0.16 +
+    Math.max(0, 58 - naturalFlow) * 0.04;
+  const authenticityScore = calibrateAuthenticityScore(clampScore(100 - fingerprintPenalty), scores, content);
 
   return {
     ...demoAnalysis,
@@ -359,7 +374,8 @@ function heuristicAnalysis(content: string, styleProfile?: StyleProfile | null):
       predictability,
       structuralUniformity,
       specificity,
-      naturalFlow
+      naturalFlow,
+      informationCompression
     }),
     documentEvidence: [
       "The document would read as more naturally human if its ideas were prioritized with less professionalized framing."
@@ -393,14 +409,15 @@ function clampScore(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-function localAiEvidence(scores: Pick<AnalysisResult["scores"], "genericPhrasing" | "professionalizedWritingBias" | "predictability" | "structuralUniformity" | "specificity" | "naturalFlow">) {
+function localAiEvidence(scores: Pick<AnalysisResult["scores"], "genericPhrasing" | "professionalizedWritingBias" | "predictability" | "structuralUniformity" | "specificity" | "naturalFlow" | "informationCompression">) {
   const evidence = [
     scores.genericPhrasing >= 50 ? "The writing uses broad generic framing." : null,
     scores.professionalizedWritingBias >= 50 ? "The tone may sound more professionally polished than the context requires." : null,
     scores.predictability >= 58 ? "The structure may feel predictable or template-like." : null,
     scores.structuralUniformity >= 65 ? "The writing distributes ideas too evenly." : null,
     scores.specificity <= 45 ? "The wording could use more concrete grounding." : null,
-    scores.naturalFlow <= 45 ? "The flow may feel mechanical rather than natural." : null
+    scores.naturalFlow <= 45 ? "The flow may feel mechanical rather than natural." : null,
+    scores.informationCompression <= 42 ? "The writing may use expanded textbook-style explanation." : null
   ].filter((item): item is string => Boolean(item));
 
   return evidence.length ? evidence : ["No major AI-writing fingerprint was detected by local preview scoring."];
