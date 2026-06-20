@@ -20,27 +20,36 @@ export async function POST(request: Request) {
     const profile = await storage.getStyleProfile(LOCAL_USER_ID).catch((error) => {
       throw classifyStorageError(error);
     });
+    const sourceAnalysis = analysisId
+      ? await storage.getAnalysis(LOCAL_USER_ID, analysisId).catch((error) => {
+          throw classifyStorageError(error);
+        })
+      : null;
+    const contentType = sourceAnalysis?.contentType ?? "Other";
     const originalAnalysis = await analyzeWriting({
       title: "Original paragraph",
       content: paragraph,
-      contentType: "Other",
+      contentType,
       styleProfile: profile?.profile ?? null
     });
     const beforeScore = originalAnalysis.overallRisk;
-    let bestRevision = await reviseParagraph({ paragraph, revisionType, styleProfile: profile?.profile ?? null });
+    const originalEvidence = strongestAiEvidence(originalAnalysis);
+    let bestRevision = await reviseParagraph({ paragraph, revisionType, contentType, styleProfile: profile?.profile ?? null });
     let bestAnalysis = await analyzeWriting({
       title: "Revised paragraph",
       content: bestRevision.revisedText,
-      contentType: "Other",
+      contentType,
       styleProfile: profile?.profile ?? null
     });
+    let bestEvidence = strongestAiEvidence(bestAnalysis);
 
     for (let attempt = 0; attempt < 4; attempt += 1) {
-      const majorEvidence = strongestAiEvidence(bestAnalysis);
+      const majorEvidence = bestEvidence;
       if (bestAnalysis.overallRisk >= 95 || majorEvidence.length === 0) break;
       const nextRevision = await reviseParagraph({
         paragraph,
         revisionType,
+        contentType,
         styleProfile: profile?.profile ?? null,
         evaluatorFeedback: {
           priorRevision: bestRevision.revisedText,
@@ -50,12 +59,17 @@ export async function POST(request: Request) {
       const nextAnalysis = await analyzeWriting({
         title: "Revised paragraph",
         content: nextRevision.revisedText,
-        contentType: "Other",
+        contentType,
         styleProfile: profile?.profile ?? null
       });
-      if (nextAnalysis.overallRisk > bestAnalysis.overallRisk) {
+      const nextEvidence = strongestAiEvidence(nextAnalysis);
+      const currentOverlap = overlapCount(originalEvidence, bestEvidence);
+      const nextOverlap = overlapCount(originalEvidence, nextEvidence);
+      const reducedFingerprints = nextEvidence.length < bestEvidence.length || nextOverlap < currentOverlap;
+      if (nextAnalysis.overallRisk > bestAnalysis.overallRisk || reducedFingerprints) {
         bestRevision = nextRevision;
         bestAnalysis = nextAnalysis;
+        bestEvidence = nextEvidence;
       }
     }
 
@@ -88,13 +102,18 @@ export async function POST(request: Request) {
         label: improvement > 0 ? `+${improvement} Improvement` : "No improvement detected",
         summary: improvement > 0 ? `${formatScore(beforeScore)} to ${formatScore(afterScore)}` : formatScore(afterScore)
       },
-      remainingIssues: revision.remainingIssues?.length ? revision.remainingIssues : strongestAiEvidence(revisedAnalysis)
+      remainingIssues: strongestAiEvidence(revisedAnalysis).length ? strongestAiEvidence(revisedAnalysis) : revision.remainingIssues ?? []
     });
   } catch (error) {
     console.error("POST /api/revise failed", error);
     const response = publicError(isAppError(error) ? error : error);
     return NextResponse.json(response.body, { status: response.status });
   }
+}
+
+function overlapCount(a: string[], b: string[]) {
+  const second = new Set(b);
+  return a.filter((item) => second.has(item)).length;
 }
 
 function strongestAiEvidence(analysis: Awaited<ReturnType<typeof analyzeWriting>>) {
@@ -109,8 +128,23 @@ function strongestAiEvidence(analysis: Awaited<ReturnType<typeof analyzeWriting>
     scores.informationCompression <= 42 ? ["over-expanded or abstract phrasing", 100 - scores.informationCompression] : null
   ].filter((issue): issue is [string, number] => Boolean(issue));
 
-  return issues
+  const modelIssues = (analysis.aiAuthorshipEvidence ?? []).flatMap((issue) => {
+    const lower = issue.toLowerCase();
+    return [
+      lower.includes("textbook") || lower.includes("cadence") ? "textbook cadence" : null,
+      lower.includes("template") || lower.includes("predictable") ? "predictable essay-template structure" : null,
+      lower.includes("abstract") || lower.includes("concept") ? "abstract concept density" : null,
+      lower.includes("professional") || lower.includes("institutional") ? "professionalized writing bias" : null,
+      lower.includes("generic") || lower.includes("broad") ? "generic framing" : null,
+      lower.includes("balanced") ? "over-balanced structure" : null
+    ].filter((item): item is string => Boolean(item));
+  });
+
+  return Array.from(new Set([
+    ...issues
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
-    .map(([label]) => label);
+      .map(([label]) => label),
+    ...modelIssues
+  ])).slice(0, 5);
 }

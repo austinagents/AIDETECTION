@@ -1,5 +1,5 @@
 import { AppError, safeDetails } from "@/lib/api/errors";
-import { StyleProfile } from "@/lib/types";
+import { ContentType, StyleProfile } from "@/lib/types";
 import { getOpenAIClient } from "./client";
 import { extractJson } from "./json";
 import { OPENAI_MODEL } from "./model";
@@ -9,6 +9,7 @@ export type RevisionType = "improve" | "specific" | "profile" | "generic";
 export async function reviseParagraph(input: {
   paragraph: string;
   revisionType: RevisionType;
+  contentType?: ContentType;
   styleProfile?: StyleProfile | null;
   evaluatorFeedback?: {
     remainingHumanEvidenceMissing?: string[];
@@ -17,11 +18,12 @@ export async function reviseParagraph(input: {
   };
 }) {
   const client = getOpenAIClient();
+  const contentType = input.contentType ?? "Other";
   if (!client) {
     return {
-      revisedText: localRevision(input.paragraph, input.revisionType),
+      revisedText: localRevision(input.paragraph, input.revisionType, contentType),
       explanation: "Local preview suggestion. Add an OpenAI API key for deeper style-aware revision.",
-      changes: ["Reduced AI-style phrasing", "Used plainer wording", "Improved natural flow"],
+      changes: ["Reduced broad AI-style framing", "Used essay-appropriate wording", "Targeted remaining AI-writing fingerprints"],
       remainingIssues: ["May still contain unresolved AI-writing fingerprints"]
     };
   }
@@ -42,6 +44,7 @@ export async function reviseParagraph(input: {
           content: `Revise this paragraph according to the request.
 
 Request: ${input.revisionType}
+Content type: ${contentType}
 Style profile: ${input.styleProfile ? JSON.stringify(input.styleProfile) : "No profile available"}
 Evaluator feedback from prior attempt: ${input.evaluatorFeedback ? JSON.stringify(input.evaluatorFeedback) : "None"}
 Paragraph: ${input.paragraph}
@@ -59,6 +62,19 @@ If the request is "improve", follow this process internally:
 10. Do not optimize for personal voice unless a writing profile is available.
 11. If a writing profile is available, optionally improve voice match, tone match, vocabulary match, rhythm match, and structure match as a separate profile layer.
 
+Essay-specific target:
+If Content type is "Essay", the revision must sound like a competent human-written essay paragraph. Keep moderate formality. Do not make it casual, childish, blog-like, poetic, theatrical, corporate, or textbook-like. The paragraph should make one clear claim and explain it with grounded examples or concrete context. It should not read like a Wikipedia overview, study abstract, institutional summary, or AI-polished student response.
+
+For Essay revisions, remove these specific AI-authorship fingerprints when present:
+- Broad universal openings or grand framing.
+- Textbook cadence: broad claim, explanation, significance.
+- Predictable essay-template structure.
+- Professionalized academic wording such as "served as a framework", "provided meaning and identity", "constructed cultural identity", "transmitted moral values", "underscores the significance", "reflects a broader pattern", "highlights the importance", "demonstrates the role", "within the context of", "deeply intertwined", "universal human desire", "human consciousness", or "the cosmos".
+- Abstract concept clusters such as life, death, nature, existence, identity, society, morality, humanity, consciousness, and understanding when stacked together.
+- Omniscient narrator claims that explain all people, all cultures, or all history too smoothly.
+
+Do not treat the revision as successful just because it is simpler, shorter, clearer, more conversational, or has changed enough words. It is successful only if the major AI-writing fingerprints are materially reduced while preserving meaning and essay-appropriate tone.
+
 Hard revision rules:
 - Never use em dashes.
 - Avoid repeated hyphenated compound constructions.
@@ -69,6 +85,10 @@ Hard revision rules:
 - Do not make the revision poetic, theatrical, overly vivid, or too neatly framed.
 - Do not force surprise, creativity, personal voice, dramatic examples, polished academic interpretation, or fake insight.
 - A simple average paragraph is acceptable if it sounds naturally human and avoids major AI-writing fingerprints.
+
+What Changed must describe AI-fingerprint reduction, not writing-quality improvement. Good examples: "Removed broad textbook-style opening", "Replaced inflated academic phrasing with normal essay language", "Reduced abstract noun stacking", "Broke the predictable claim/explanation/significance structure", "Removed professionalized report-style phrasing", "Kept the paragraph formal enough for an essay without sounding institutional".
+
+Remaining Issues must only mention unresolved AI fingerprints. Do not mention needing more personal voice, creativity, insight, surprise, originality, engagement, or a stronger hook.
 
 Do not explain this internal process to the user. Return the strongest revision and concise evidence-based notes.
 
@@ -89,13 +109,13 @@ Return:
         revisedText: parsed.revisedText,
         explanation: parsed.explanation,
         changes: normalizeChanges(parsed.changes, parsed.explanation),
-        remainingIssues: normalizeList(parsed.remainingIssues).slice(0, 5)
+        remainingIssues: normalizeRemainingIssues(parsed.remainingIssues).slice(0, 5)
       };
     } catch {
       return {
-        revisedText: localRevision(input.paragraph, input.revisionType),
+        revisedText: localRevision(input.paragraph, input.revisionType, contentType),
         explanation: "The model response could not be parsed, so this is a local preview suggestion.",
-        changes: ["Reduced AI-style phrasing", "Used plainer wording", "Improved natural flow"],
+        changes: ["Reduced broad AI-style framing", "Used essay-appropriate wording", "Targeted remaining AI-writing fingerprints"],
         remainingIssues: ["May still contain unresolved AI-writing fingerprints"]
       };
     }
@@ -110,9 +130,13 @@ Return:
   }
 }
 
-function localRevision(paragraph: string, revisionType: RevisionType) {
+function localRevision(paragraph: string, revisionType: RevisionType, contentType: ContentType) {
+  const improvePrefix =
+    contentType === "Essay"
+      ? "Consider a version that keeps an essay tone while reducing textbook-style AI fingerprints:"
+      : "Consider a plainer, more naturally human version:";
   const prefix: Record<RevisionType, string> = {
-    improve: "Consider a plainer, more naturally human version:",
+    improve: improvePrefix,
     specific: "Add a named example, moment, number, or constraint:",
     profile: "Adjust the rhythm and wording toward your saved profile:",
     generic: "Replace broad phrasing with plainer, more owned language:"
@@ -124,14 +148,22 @@ function normalizeList(items: string[] | undefined) {
   return Array.isArray(items) ? items.map((item) => item.trim()).filter(Boolean) : [];
 }
 
+function normalizeRemainingIssues(items: string[] | undefined) {
+  const blocked = /\b(personal voice|creativ|insight|surprise|original|engaging|stronger hook|readability|clarity)\b/i;
+  return normalizeList(items).filter((item) => !blocked.test(item));
+}
+
 function normalizeChanges(changes: string[] | undefined, explanation: string) {
+  const blocked = /\b(improved readability|enhanced clarity|more conversational|strengthened voice|added insight|more engaging)\b/i;
   if (Array.isArray(changes) && changes.length) {
-    return changes.map((change) => change.trim()).filter(Boolean).slice(0, 5);
+    const normalized = changes.map((change) => change.trim()).filter((change) => change && !blocked.test(change)).slice(0, 5);
+    return normalized.length ? normalized : ["Reduced visible AI-writing fingerprints"];
   }
 
-  return explanation
+  const normalized = explanation
     .split(/[.;]\s+/)
     .map((item) => item.trim())
-    .filter(Boolean)
+    .filter((item) => item && !blocked.test(item))
     .slice(0, 5);
+  return normalized.length ? normalized : ["Reduced visible AI-writing fingerprints"];
 }
