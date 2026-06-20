@@ -7,6 +7,7 @@ import { formatScore } from "@/lib/scoring/normalizeScore";
 import { getStorage } from "@/lib/storage";
 
 export async function POST(request: Request) {
+  let revisionDebug: Record<string, unknown> | null = null;
   try {
     const body = await request.json();
     const paragraph = String(body.paragraph || "");
@@ -34,9 +35,23 @@ export async function POST(request: Request) {
     const originalWordCount = countWords(paragraph);
     const minWordCount = Math.ceil(originalWordCount * 0.95);
     const maxWordCount = Math.floor(originalWordCount * 1.3);
+    revisionDebug = {
+      paragraphIndex,
+      originalWordCount,
+      minWordCount,
+      maxWordCount,
+      analysisSkipped: false
+    };
     let revision = await reviseParagraph({ paragraph, revisionType, contentType, styleProfile: profile?.profile ?? null });
     let revisedWordCount = countWords(revision.revisedText);
     let validationFailures = getRevisionValidationFailures(revision.revisedText, revisedWordCount, minWordCount, maxWordCount);
+    revisionDebug = {
+      ...revisionDebug,
+      firstRevisionWordCount: revisedWordCount,
+      firstRevisionValidationErrors: validationFailures,
+      firstRevisionBannedPatternMatches: getBannedRevisionMatches(revision.revisedText)
+    };
+    logRevisionDebug("first_revision", revisionDebug);
 
     if (validationFailures.length) {
       revision = await reviseParagraph({
@@ -55,16 +70,39 @@ export async function POST(request: Request) {
       });
       revisedWordCount = countWords(revision.revisedText);
       validationFailures = getRevisionValidationFailures(revision.revisedText, revisedWordCount, minWordCount, maxWordCount);
+      revisionDebug = {
+        ...revisionDebug,
+        repairRevisionWordCount: revisedWordCount,
+        repairRevisionValidationErrors: validationFailures,
+        repairRevisionBannedPatternMatches: getBannedRevisionMatches(revision.revisedText)
+      };
+      logRevisionDebug("repair_revision", revisionDebug);
     }
 
     if (validationFailures.length) {
-      throw new AppError(
-        "VALIDATION_ERROR",
-        "Couldn't generate a compliant revision. Try again.",
-        422
-      );
+      revisionDebug = {
+        ...revisionDebug,
+        preNormalizationValidationErrors: validationFailures,
+        preNormalizationWordCount: revisedWordCount,
+        preNormalizationBannedPatternMatches: getBannedRevisionMatches(revision.revisedText)
+      };
+      revision = {
+        ...revision,
+        revisedText: normalizeRevisionText(revision.revisedText, minWordCount, maxWordCount)
+      };
+      revisedWordCount = countWords(revision.revisedText);
+      validationFailures = getRevisionValidationFailures(revision.revisedText, revisedWordCount, minWordCount, maxWordCount);
+      revisionDebug = {
+        ...revisionDebug,
+        normalizedRevisionWordCount: revisedWordCount,
+        normalizedRevisionValidationErrors: validationFailures,
+        normalizedRevisionBannedPatternMatches: getBannedRevisionMatches(revision.revisedText),
+        analysisSkipped: false
+      };
+      logRevisionDebug("deterministic_normalization", revisionDebug);
     }
 
+    logRevisionDebug("analysis_started", revisionDebug);
     const revisedAnalysis = await analyzeWriting({
       title: "Revised paragraph",
       content: revision.revisedText,
@@ -104,6 +142,14 @@ export async function POST(request: Request) {
       remainingIssues: strongestAiEvidence(revisedAnalysis).length ? strongestAiEvidence(revisedAnalysis) : revision.remainingIssues ?? []
     });
   } catch (error) {
+    if (revisionDebug) {
+      const response = publicError(isAppError(error) ? error : error);
+      logRevisionDebug("request_failed", {
+        ...revisionDebug,
+        finalReturnedErrorMessage: response.body.error,
+        finalReturnedErrorCode: response.body.code
+      });
+    }
     console.error("POST /api/revise failed", error);
     const response = publicError(isAppError(error) ? error : error);
     return NextResponse.json(response.body, { status: response.status });
@@ -116,6 +162,21 @@ function countWords(text: string) {
 
 function isWithinRevisionWordRange(wordCount: number, minWordCount: number, maxWordCount: number) {
   return wordCount >= minWordCount && wordCount <= maxWordCount;
+}
+
+function normalizeRevisionText(text: string, minWordCount: number, maxWordCount: number) {
+  const withoutBannedPunctuation = text
+    .replace(/—/g, ", ")
+    .replace(/\b([A-Za-z]+)-([A-Za-z]+)\b/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .trim();
+
+  const words = withoutBannedPunctuation.split(/\s+/).filter(Boolean);
+  if (words.length <= maxWordCount) return withoutBannedPunctuation;
+
+  const trimmed = words.slice(0, maxWordCount).join(" ").replace(/[,:;]+$/, ".");
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
 const bannedRevisionPatterns = [
@@ -133,6 +194,15 @@ function getBannedRevisionViolations(text: string) {
   return bannedRevisionPatterns.filter(({ pattern }) => pattern.test(text));
 }
 
+function getBannedRevisionMatches(text: string) {
+  return bannedRevisionPatterns.flatMap(({ name, pattern }) => {
+    const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+    const globalPattern = new RegExp(pattern.source, flags);
+    const matches = Array.from(text.matchAll(globalPattern)).map((match) => match[0]);
+    return matches.length ? [{ name, matches }] : [];
+  });
+}
+
 function getRevisionValidationFailures(text: string, wordCount: number, minWordCount: number, maxWordCount: number) {
   const failures: string[] = [];
   if (wordCount < minWordCount) failures.push("is too short");
@@ -141,6 +211,10 @@ function getRevisionValidationFailures(text: string, wordCount: number, minWordC
     failures.push(`contains ${violation.name}`);
   }
   return failures;
+}
+
+function logRevisionDebug(event: string, details: Record<string, unknown> | null) {
+  console.info("[revision-debug]", JSON.stringify({ event, ...details }));
 }
 
 function strongestAiEvidence(analysis: Awaited<ReturnType<typeof analyzeWriting>>) {
