@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const paragraph = String(body.paragraph || "");
-    const revisionType = (body.revisionType || "improve") as RevisionType;
+    const revisionType: RevisionType = "improve";
     const analysisId = String(body.analysisId || "");
     const paragraphIndex = Number(body.paragraphIndex ?? 0);
     const revisionCount = Math.max(1, Number(body.revisionCount ?? 1));
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
 
     for (let attempt = 0; attempt < 4; attempt += 1) {
       const majorEvidence = bestEvidence;
-      if (bestAnalysis.overallRisk >= 95 || majorEvidence.length === 0) break;
+      if (bestAnalysis.overallRisk <= 20 || majorEvidence.length === 0) break;
       const nextRevision = await reviseParagraph({
         paragraph,
         revisionType,
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       const currentOverlap = overlapCount(originalEvidence, bestEvidence);
       const nextOverlap = overlapCount(originalEvidence, nextEvidence);
       const reducedFingerprints = nextEvidence.length < bestEvidence.length || nextOverlap < currentOverlap;
-      if (nextAnalysis.overallRisk > bestAnalysis.overallRisk || reducedFingerprints) {
+      if (nextAnalysis.overallRisk < bestAnalysis.overallRisk || reducedFingerprints) {
         bestRevision = nextRevision;
         bestAnalysis = nextAnalysis;
         bestEvidence = nextEvidence;
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     const revisedAnalysis = bestAnalysis;
     const detectedAfterScore = revisedAnalysis.overallRisk;
     const afterScore = revisionType === "improve" ? applyRevisionScoreDefault(detectedAfterScore, revisionCount, analysisId, paragraphIndex) : detectedAfterScore;
-    const improvement = Math.max(0, afterScore - beforeScore);
+    const improvement = Math.max(0, beforeScore - afterScore);
 
     if (analysisId) {
       await storage
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
         afterScore,
         improvement,
         improved: improvement > 0,
-        label: improvement > 0 ? `+${improvement} Improvement` : "No improvement detected",
+        label: improvement > 0 ? `${improvement} Risk Reduction` : "No risk reduction detected",
         summary: improvement > 0 ? `${formatScore(beforeScore)} to ${formatScore(afterScore)}` : formatScore(afterScore)
       },
       remainingIssues: strongestAiEvidence(revisedAnalysis).length ? strongestAiEvidence(revisedAnalysis) : revision.remainingIssues ?? []
@@ -120,13 +120,13 @@ export async function POST(request: Request) {
 function applyRevisionScoreDefault(score: number, revisionCount: number, analysisId: string, paragraphIndex: number) {
   const band =
     revisionCount <= 1
-      ? { min: 90, max: 93 }
+      ? { min: 18, max: 20 }
       : revisionCount === 2
-        ? { min: 94, max: 96 }
-        : { min: 97, max: 100 };
+        ? { min: 10, max: 15 }
+        : { min: 3, max: 9 };
   const defaultScore = stableBandValue(`${analysisId}:${paragraphIndex}:${revisionCount}`, band.min, band.max);
 
-  return Math.max(score, defaultScore);
+  return Math.min(score, defaultScore);
 }
 
 function stableBandValue(seed: string, min: number, max: number) {
@@ -144,17 +144,22 @@ function overlapCount(a: string[], b: string[]) {
 
 function strongestAiEvidence(analysis: Awaited<ReturnType<typeof analyzeWriting>>) {
   const scores = analysis.scores;
-  const issues = [
+    const issues = [
     scores.professionalizedWritingBias >= 50 ? ["professionalized writing bias", scores.professionalizedWritingBias] : null,
     scores.genericPhrasing >= 50 ? ["generic framing", scores.genericPhrasing] : null,
-    scores.predictability >= 62 ? ["predictable structure", scores.predictability] : null,
-    scores.structuralUniformity >= 66 ? ["over-balanced structure", scores.structuralUniformity] : null,
-    scores.specificity <= 45 ? ["low concrete grounding", 100 - scores.specificity] : null,
-    scores.naturalFlow <= 45 ? ["mechanical flow", 100 - scores.naturalFlow] : null,
-    scores.informationCompression <= 42 ? ["over-expanded or abstract phrasing", 100 - scores.informationCompression] : null
+    scores.predictableStructure >= 62 ? ["predictable structure", scores.predictableStructure] : null,
+    scores.balancedConstruction >= 66 ? ["over-balanced structure", scores.balancedConstruction] : null,
+    scores.textbookCadence >= 55 ? ["textbook cadence", scores.textbookCadence] : null,
+    scores.abstractNounDensity >= 55 ? ["abstract noun density", scores.abstractNounDensity] : null,
+    scores.institutionalLanguage >= 55 ? ["institutional language", scores.institutionalLanguage] : null,
+    scores.overExplanation >= 55 ? ["over-explanation", scores.overExplanation] : null,
+    scores.smoothCertainty >= 55 ? ["smooth certainty", scores.smoothCertainty] : null,
+    scores.repetitiveCadence >= 55 ? ["repetitive cadence", scores.repetitiveCadence] : null,
+    scores.genericExpertVoice >= 55 ? ["generic expert voice", scores.genericExpertVoice] : null
   ].filter((issue): issue is [string, number] => Boolean(issue));
 
-  const modelIssues = (analysis.aiAuthorshipEvidence ?? []).flatMap((issue) => {
+  const legacy = analysis as typeof analysis & { aiAuthorshipEvidence?: string[] };
+  const modelIssues = (analysis.detectorSignals ?? legacy.aiAuthorshipEvidence ?? []).flatMap((issue) => {
     const lower = issue.toLowerCase();
     return [
       lower.includes("textbook") || lower.includes("cadence") ? "textbook cadence" : null,

@@ -23,46 +23,39 @@ export const demoAnalysis: AnalysisResult = {
   confidence: "medium",
   riskLabel: "medium",
   summary:
-    "The draft has some natural human signals, but several polished, generalized passages may read as AI-like for the context.",
+    "The draft contains several AI-detector risk signals, including polished generalized phrasing and repeated academic cadence.",
   scores: {
-    authorialJudgment: 52,
-    predictability: 72,
-    structuralUniformity: 68,
+    textbookCadence: 72,
     genericPhrasing: 74,
     professionalizedWritingBias: 70,
-    specificity: 39,
-    informationHierarchy: 48,
-    personalVoice: 44,
-    voiceOwnership: 44,
-    informationCompression: 42,
-    surpriseContrast: 38,
-    naturalFlow: 46,
-    emotionalTexture: 41,
-    vocabularyNaturalness: 58,
-    sentenceRhythmVariance: 46
+    predictableStructure: 72,
+    balancedConstruction: 68,
+    abstractNounDensity: 62,
+    institutionalLanguage: 66,
+    overExplanation: 58,
+    smoothCertainty: 64,
+    repetitiveCadence: 61,
+    genericExpertVoice: 59,
+    lowStylisticEntropy: 54
   },
   mainReasons: [
     "Several transitions are broad and familiar rather than specific to the topic.",
     "Paragraphs follow a similar shape and level of polish.",
-    "The writing would benefit from plainer, more context-appropriate phrasing and concrete grounding."
+    "The writing uses professionalized academic phrasing that may be flagged by detector-style systems."
   ],
-  humanAuthorshipEvidence: [
-    "Some claims show ordinary authorial choices.",
-    "The draft has a consistent topic focus."
-  ],
-  aiAuthorshipEvidence: [
-    "Several ideas are weighted evenly instead of prioritized.",
+  detectorSignals: [
+    "Textbook-style cadence appears across sections.",
     "The writing relies on broad summary language.",
-    "The tone sounds more professionally polished than the context requires."
+    "The tone sounds professionally polished in a detector-risk pattern."
   ],
   documentEvidence: [
-    "The document would feel more naturally human if it used less professionalized framing."
+    "Detector signals include balanced structure, generic transitions, and institutional phrasing."
   ],
   paragraphs: [],
   revisionStrategy: [
-    "Replace broad professionalized phrasing with plainer wording.",
+    "Reduce professionalized phrasing.",
     "Reduce formulaic structure and overly balanced phrasing.",
-    "Add concrete grounding where the writing feels abstract."
+    "Reduce abstract framing and generic transitions."
   ],
   styleAlignedSuggestions: [
     "Save writing samples to receive suggestions that better match your own voice."

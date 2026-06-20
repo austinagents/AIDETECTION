@@ -4,7 +4,7 @@ import { getOpenAIClient } from "./client";
 import { extractJson } from "./json";
 import { OPENAI_MODEL } from "./model";
 
-export type RevisionType = "improve" | "specific" | "profile" | "generic";
+export type RevisionType = "improve";
 
 export async function reviseParagraph(input: {
   paragraph: string;
@@ -37,7 +37,7 @@ export async function reviseParagraph(input: {
         {
           role: "system",
           content:
-            "You are an authorship evidence optimizer. Improve paragraphs by making them look more naturally human-written for their context and by decreasing visible AI-writing fingerprints. This is not a grammar, quality, creativity, originality, polish, or readability task. Do not make evasion-related claims. Preserve meaning, factual boundaries, and user intent. Return strict JSON only."
+            "You are an AI-detector risk reducer. Revise paragraphs only to reduce visible AI-writing fingerprints while preserving meaning, factual boundaries, and user intent. This is not a grammar, quality, creativity, originality, polish, voice, or readability task. Do not make evasion-related claims. Return strict JSON only."
         },
         {
           role: "user",
@@ -50,20 +50,19 @@ Evaluator feedback from prior attempt: ${input.evaluatorFeedback ? JSON.stringif
 Paragraph: ${input.paragraph}
 
 If the request is "improve", follow this process internally:
-1. Analyze whether the paragraph looks like something a normal person would naturally write in this context.
-2. Identify the strongest weaknesses.
-3. Build a rewrite strategy that reduces generic framing, professionalized writing bias, flat summary tone, predictable structure, low specificity, over-balanced flow, textbook cadence, artificial insight framing, and consultant/report-style phrasing when present.
-4. Increase natural human likelihood by using plain human phrasing, context-appropriate tone, normal sentence rhythm, concrete grounding where useful, and less institutional structure.
+1. Analyze which detector-style AI fingerprints are present.
+2. Identify the strongest risk signals.
+3. Build a rewrite strategy that reduces generic framing, professionalized writing bias, flat summary tone, predictable structure, balanced construction, textbook cadence, artificial insight framing, abstract noun density, institutional language, over-explanation, smooth certainty, and consultant/report-style phrasing when present.
+4. Reduce detector risk by lowering structure symmetry, textbook cadence, academic polish, abstract framing, generic transitions, and repetitive cadence.
 5. Preserve meaning, factual boundaries, and user intent.
 6. Do not preserve structure if a stronger structure is available.
 7. Do not merely replace synonyms.
 8. Restructure aggressively when beneficial.
 9. If evaluator feedback is provided, use it to produce a stronger attempt.
-10. Do not optimize for personal voice unless a writing profile is available.
-11. If a writing profile is available, optionally improve voice match, tone match, vocabulary match, rhythm match, and structure match as a separate profile layer.
+10. Do not optimize for personal voice, creativity, originality, insight, or readability.
 
 Essay-specific target:
-If Content type is "Essay", the revision must sound like a competent human-written essay paragraph. Keep moderate formality. Do not make it casual, childish, blog-like, poetic, theatrical, corporate, or textbook-like. The paragraph should make one clear claim and explain it with grounded examples or concrete context. It should not read like a Wikipedia overview, study abstract, institutional summary, or AI-polished student response.
+If Content type is "Essay", the revision must reduce detector risk while keeping an essay-appropriate tone. Keep moderate formality. Do not make it casual, childish, blog-like, poetic, theatrical, corporate, or textbook-like. It should not read like a Wikipedia overview, study abstract, institutional summary, or AI-polished student response.
 
 For Essay revisions, remove these specific AI-authorship fingerprints when present:
 - Broad universal openings or grand framing.
@@ -73,7 +72,7 @@ For Essay revisions, remove these specific AI-authorship fingerprints when prese
 - Abstract concept clusters such as life, death, nature, existence, identity, society, morality, humanity, consciousness, and understanding when stacked together.
 - Omniscient narrator claims that explain all people, all cultures, or all history too smoothly.
 
-Do not treat the revision as successful just because it is simpler, shorter, clearer, more conversational, or has changed enough words. It is successful only if the major AI-writing fingerprints are materially reduced while preserving meaning and essay-appropriate tone.
+Do not treat the revision as successful just because it is simpler, shorter, clearer, more conversational, or has changed enough words. It is successful only if the major detector risk signals are materially reduced while preserving meaning and essay-appropriate tone.
 
 Hard revision rules:
 - Never use em dashes.
@@ -134,14 +133,8 @@ function localRevision(paragraph: string, revisionType: RevisionType, contentTyp
   const improvePrefix =
     contentType === "Essay"
       ? "Consider a version that keeps an essay tone while reducing textbook-style AI fingerprints:"
-      : "Consider a plainer, more naturally human version:";
-  const prefix: Record<RevisionType, string> = {
-    improve: improvePrefix,
-    specific: "Add a named example, moment, number, or constraint:",
-    profile: "Adjust the rhythm and wording toward your saved profile:",
-    generic: "Replace broad phrasing with plainer, more owned language:"
-  };
-  return `${prefix[revisionType]} ${paragraph}`;
+      : "Consider a version that reduces visible AI-writing fingerprints:";
+  return `${improvePrefix} ${paragraph}`;
 }
 
 function normalizeList(items: string[] | undefined) {

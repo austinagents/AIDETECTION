@@ -3,30 +3,29 @@ import { Shell } from "@/components/Shell";
 import { RiskBadge } from "@/components/RiskBadge";
 import { Card } from "@/components/ui";
 import { LOCAL_USER_ID } from "@/lib/constants";
-import { formatScore, normalizeScore } from "@/lib/scoring/normalizeScore";
+import { detectorRiskBand, formatScore, normalizeScore } from "@/lib/scoring/normalizeScore";
 import { getStorage } from "@/lib/storage";
 import { Feedback, RecommendedImprovements } from "./ResultActions";
 
 export default async function AnalysisResultPage({ params }: { params: { id: string } }) {
   const storage = getStorage();
-  const [analysis, profile] = await Promise.all([
-    storage.getAnalysis(LOCAL_USER_ID, params.id),
-    storage.getStyleProfile(LOCAL_USER_ID)
-  ]);
+  const analysis = await storage.getAnalysis(LOCAL_USER_ID, params.id);
   if (!analysis) notFound();
 
   const result = analysis.result;
-  const authenticityScore = normalizeScore(result.overallRisk);
+  const detectionRisk = normalizeScore(result.overallRisk);
   const detectionContributors = result.paragraphs.filter((paragraph) => paragraph.risk >= 40).length;
-  const writingCharacteristics = [
-    ["Decision Making", result.scores.authorialJudgment],
-    ["Specificity", result.scores.specificity],
-    ["Sentence Variety", result.scores.sentenceRhythmVariance],
-    ["Information Compression", result.scores.informationCompression],
-    ...(profile?.sampleCount ? ([["Voice Match", result.scores.personalVoice]] as const) : [])
+  const riskFactors = [
+    ["Textbook Cadence", result.scores.textbookCadence],
+    ["Professionalized Tone", result.scores.professionalizedWritingBias],
+    ["Generic Framing", result.scores.genericPhrasing],
+    ["Predictable Structure", result.scores.predictableStructure],
+    ["Balanced Structure", result.scores.balancedConstruction],
+    ["Abstract Noun Density", result.scores.abstractNounDensity],
+    ["Smooth Certainty", result.scores.smoothCertainty]
   ] as const;
-  const topIssues = (result.aiAuthorshipEvidence?.length ? result.aiAuthorshipEvidence : result.mainReasons).slice(0, 3);
-  const humanEvidence = result.humanAuthorshipEvidence?.slice(0, 3) ?? [];
+  const topIssues = (result.detectorSignals?.length ? result.detectorSignals : result.mainReasons).slice(0, 3);
+  const detectorSignals = result.documentEvidence?.length ? result.documentEvidence.slice(0, 3) : topIssues;
 
   return (
     <Shell>
@@ -40,17 +39,17 @@ export default async function AnalysisResultPage({ params }: { params: { id: str
 
       <section className="mt-8 grid gap-6 xl:grid-cols-[1fr_360px]">
         <Card className="p-7">
-          <p className="text-sm text-slate-400">Authenticity Score</p>
+          <p className="text-sm text-slate-400">AI Detection Risk</p>
           <div className="mt-4 flex items-end gap-4">
-            <span className="text-7xl font-semibold leading-none">{formatScore(authenticityScore)}</span>
-            <span className="pb-2 text-sm capitalize text-slate-400">{result.riskLabel} Risk</span>
+            <span className="text-7xl font-semibold leading-none">{formatScore(detectionRisk)}</span>
+            <span className="pb-2 text-sm text-slate-400">{detectorRiskBand(detectionRisk)} Risk</span>
           </div>
           <p className="mt-6 text-sm leading-6 text-slate-300">{result.summary}</p>
         </Card>
 
         <Card className="p-7">
           <p className="text-sm text-slate-400">Detection Risk</p>
-          <p className="mt-4 text-4xl font-semibold capitalize">{result.riskLabel}</p>
+          <p className="mt-4 text-4xl font-semibold">{detectorRiskBand(detectionRisk)}</p>
           <p className="mt-5 text-sm leading-6 text-slate-400">
             {detectionContributors === 1
               ? "1 section contributed to this assessment."
@@ -75,10 +74,10 @@ export default async function AnalysisResultPage({ params }: { params: { id: str
 
         <div className="space-y-6">
           <Card className="p-6">
-            <h2 className="text-lg font-semibold">Writing Characteristics</h2>
-            <p className="mt-2 text-sm text-slate-400">Higher is better.</p>
+            <h2 className="text-lg font-semibold">Risk Factors</h2>
+            <p className="mt-2 text-sm text-slate-400">Higher means more detector risk.</p>
             <div className="mt-5 space-y-4">
-              {writingCharacteristics.map(([label, value]) => (
+              {riskFactors.map(([label, value]) => (
                 <div key={label} className="flex items-center justify-between border-b border-ink-700 pb-3 last:border-b-0 last:pb-0">
                   <span className="text-sm text-slate-300">{label}</span>
                   <span className="text-lg font-semibold">{formatScore(value)}</span>
@@ -87,11 +86,11 @@ export default async function AnalysisResultPage({ params }: { params: { id: str
             </div>
           </Card>
 
-          {humanEvidence.length > 0 && (
+          {detectorSignals.length > 0 && (
             <Card className="p-6">
-              <h2 className="text-lg font-semibold">Human Authorship Evidence</h2>
+              <h2 className="text-lg font-semibold">Detector Signals</h2>
               <div className="mt-4 space-y-3">
-                {humanEvidence.map((evidence) => (
+                {detectorSignals.map((evidence) => (
                   <p key={evidence} className="text-sm leading-6 text-slate-400">{evidence}</p>
                 ))}
               </div>

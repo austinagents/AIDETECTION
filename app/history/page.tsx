@@ -13,13 +13,13 @@ export default async function HistoryPage() {
   return (
     <Shell>
       <h1 className="text-3xl font-semibold">History</h1>
-      <p className="mt-2 text-sm text-slate-400">Past writing reviews and authenticity scores.</p>
+      <p className="mt-2 text-sm text-slate-400">Past writing reviews and AI detection risk scores.</p>
       <Card className="mt-8 overflow-hidden">
         <div className="grid grid-cols-[1fr_140px_120px_120px] border-b border-ink-700 px-5 py-3 text-xs font-medium uppercase tracking-wide text-slate-500">
           <span>Title</span>
           <span>Date</span>
           <span>Type</span>
-          <span>Score</span>
+          <span>Risk</span>
         </div>
         {analyses.map((item) => (
           <Link key={item.id} href={`/analysis/${item.id}`} className="grid grid-cols-[1fr_140px_120px_120px] items-center border-b border-ink-700 px-5 py-4 last:border-b-0 hover:bg-ink-800/60">

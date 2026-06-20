@@ -3,60 +3,70 @@ import { normalizeScore } from "./normalizeScore";
 
 type CalibratedScores = Partial<AnalysisScores>;
 
-export function calibrateAuthenticityScore(score: number, scores: CalibratedScores | undefined, text?: string) {
+export function calibrateDetectorRisk(score: number, scores: CalibratedScores | undefined, text?: string) {
   if (!scores) return normalizeScore(score);
 
   const current = normalizeScore(score);
   const professionalized = normalizeScore(scores.professionalizedWritingBias);
   const generic = normalizeScore(scores.genericPhrasing);
-  const predictable = normalizeScore(scores.predictability);
-  const uniform = normalizeScore(scores.structuralUniformity);
-  const lowSpecificity = Math.max(0, 70 - normalizeScore(scores.specificity));
-  const lowFlow = Math.max(0, 100 - normalizeScore(scores.naturalFlow));
-  const lowCompression = Math.max(0, 85 - normalizeScore(scores.informationCompression));
-  const lowRhythm = Math.max(0, 100 - normalizeScore(scores.sentenceRhythmVariance));
+  const predictable = normalizeScore(scores.predictableStructure);
+  const balanced = normalizeScore(scores.balancedConstruction);
+  const textbook = normalizeScore(scores.textbookCadence);
+  const abstractDensity = normalizeScore(scores.abstractNounDensity);
+  const institutional = normalizeScore(scores.institutionalLanguage);
+  const overExplanation = normalizeScore(scores.overExplanation);
+  const smoothCertainty = normalizeScore(scores.smoothCertainty);
+  const repetitive = normalizeScore(scores.repetitiveCadence);
+  const expertVoice = normalizeScore(scores.genericExpertVoice);
+  const lowEntropy = normalizeScore(scores.lowStylisticEntropy);
   const textFingerprints = text ? detectTextFingerprints(text) : null;
 
-  const fingerprintStrength =
-    professionalized * 0.3 +
-    generic * 0.22 +
-    predictable * 0.18 +
-    uniform * 0.14 +
-    lowSpecificity * 0.03 +
-    lowFlow * 0.05 +
-    lowCompression * 0.03 +
-    lowRhythm * 0.03 +
-    (textFingerprints?.score ?? 0) * 0.32;
-
+  const fingerprintRisk = normalizeScore(
+    professionalized * 0.18 +
+      generic * 0.14 +
+      predictable * 0.12 +
+      balanced * 0.1 +
+      textbook * 0.14 +
+      abstractDensity * 0.08 +
+      institutional * 0.08 +
+      overExplanation * 0.06 +
+      smoothCertainty * 0.05 +
+      repetitive * 0.05 +
+      expertVoice * 0.04 +
+      lowEntropy * 0.04 +
+      (textFingerprints?.score ?? 0) * 0.28
+  );
   const majorFingerprints = [
     professionalized >= 55,
     generic >= 55,
     predictable >= 60,
-    uniform >= 62,
+    balanced >= 62,
+    textbook >= 60,
+    abstractDensity >= 60,
+    institutional >= 60,
+    overExplanation >= 60,
+    smoothCertainty >= 60,
+    repetitive >= 60,
+    expertVoice >= 60,
     textFingerprints ? textFingerprints.textbookCadence >= 2 : false,
     textFingerprints ? textFingerprints.abstractDensity >= 4 : false,
     textFingerprints ? textFingerprints.genericEducationalOpeners >= 1 : false,
-    textFingerprints ? textFingerprints.excessiveConfidence : false,
-    lowFlow >= 55,
-    lowCompression >= 60
+    textFingerprints ? textFingerprints.excessiveConfidence : false
   ].filter(Boolean).length;
-
-  const evidenceBasedScore = normalizeScore(100 - fingerprintStrength);
-  const cappedScore =
+  const floor =
     majorFingerprints >= 5
-      ? Math.min(evidenceBasedScore, 45)
+      ? 82
       : majorFingerprints >= 4
-        ? Math.min(evidenceBasedScore, 55)
+        ? 72
         : majorFingerprints >= 3
-          ? Math.min(evidenceBasedScore, 65)
+          ? 62
           : majorFingerprints >= 2
-            ? Math.min(evidenceBasedScore, 75)
-            : evidenceBasedScore;
+            ? 48
+            : majorFingerprints === 1
+              ? 32
+              : 0;
 
-  if (majorFingerprints === 0) return normalizeScore(Math.max(current, evidenceBasedScore, 86));
-  if (majorFingerprints === 1) return normalizeScore(Math.min(Math.max(current, evidenceBasedScore), 84));
-
-  return normalizeScore(Math.min(current * 0.35 + cappedScore * 0.65, cappedScore));
+  return normalizeScore(Math.max(current, fingerprintRisk, floor));
 }
 
 function detectTextFingerprints(text: string) {

@@ -16,7 +16,7 @@ export default async function DashboardPage() {
     storage.listWritingSamples(LOCAL_USER_ID),
     storage.getStyleProfile(LOCAL_USER_ID)
   ]);
-  const averageAuthenticity = analyses.length ? Math.round(analyses.reduce((sum, item) => sum + item.overallRisk, 0) / analyses.length) : 0;
+  const averageDetectionRisk = analyses.length ? Math.round(analyses.reduce((sum, item) => sum + item.overallRisk, 0) / analyses.length) : 0;
   const strength = samples.length >= 8 ? "Strong" : samples.length >= 3 ? "Developing" : "Needs samples";
 
   return (
@@ -35,7 +35,7 @@ export default async function DashboardPage() {
       <section className="mt-8 grid gap-4 md:grid-cols-4">
         <Stat title="Analyses" value={analyses.length.toString()} />
         <Stat title="Writing samples" value={samples.length.toString()} />
-        <Stat title="Average authenticity" value={analyses.length ? formatScore(averageAuthenticity) : "—"} />
+        <Stat title="Average detector risk" value={analyses.length ? formatScore(averageDetectionRisk) : "—"} />
         <Stat title="Profile strength" value={strength} />
       </section>
 

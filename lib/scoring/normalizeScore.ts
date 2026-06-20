@@ -41,16 +41,6 @@ export function inferScoreScale(values: unknown[]): "decimal" | "percentage" {
   return decimalScale ? "decimal" : "percentage";
 }
 
-export function aiRiskToAuthenticityScore(value: unknown, scale: "auto" | "decimal" | "percentage" = "auto") {
-  return clampPercent(100 - normalizeScore(value, { scale }));
-}
-
-export function riskLabelFromAuthenticityScore(score: number): RiskLabel {
-  if (score <= 50) return "high";
-  if (score <= 75) return "medium";
-  return "low";
-}
-
 export function riskLabelFromRiskScore(score: number): RiskLabel {
   if (score >= 70) return "high";
   if (score >= 40) return "medium";
@@ -59,6 +49,15 @@ export function riskLabelFromRiskScore(score: number): RiskLabel {
 
 export function formatScore(score: number) {
   return `${normalizeScore(score)}%`;
+}
+
+export function detectorRiskBand(score: number) {
+  const normalized = normalizeScore(score);
+  if (normalized <= 20) return "Very Low";
+  if (normalized <= 40) return "Low";
+  if (normalized <= 60) return "Moderate";
+  if (normalized <= 80) return "High";
+  return "Very High";
 }
 
 function clampPercent(value: number) {

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { CheckCircle2, Copy, ThumbsDown, ThumbsUp } from "lucide-react";
 import { RiskBadge } from "@/components/RiskBadge";
 import { Card } from "@/components/ui";
-import { formatScore } from "@/lib/scoring/normalizeScore";
+import { detectorRiskBand, formatScore } from "@/lib/scoring/normalizeScore";
 import { ParagraphAnalysis } from "@/lib/types";
 
 type RevisionImpact = {
@@ -35,6 +35,8 @@ type FinalEssay = {
   score: number;
 };
 
+type SubmissionReadinessState = "Ready" | "Mostly Ready" | "Needs Work" | "High Risk";
+
 export function RecommendedImprovements({
   analysisId,
   paragraphs
@@ -50,8 +52,14 @@ export function RecommendedImprovements({
   const [completedImprovements, setCompletedImprovements] = useState<Record<number, CompletedImprovement>>({});
   const [finalEssay, setFinalEssay] = useState<FinalEssay | null>(null);
   const remaining = Math.max(0, recommended.length - completed.size);
-  const readiness =
-    recommended.length === 0 || remaining === 0 ? "Ready" : remaining < recommended.length ? "Almost Ready" : "Not Ready";
+  const readinessScore = recommended.length
+    ? Math.round(
+        recommended.reduce((sum, paragraph) => {
+          return sum + (completedImprovements[paragraph.index]?.latestAfterScore ?? paragraph.risk);
+        }, 0) / recommended.length
+      )
+    : 0;
+  const readiness = submissionReadinessFromRisk(readinessScore);
   const canGenerateFinalEssay = recommended.length > 0 && completed.size === recommended.length;
 
   function markImproved(improvement: CompletedImprovement) {
@@ -80,7 +88,7 @@ export function RecommendedImprovements({
 
     setFinalEssay({
       text: finalParagraphs.join("\n\n"),
-      score: Math.max(90, Math.min(100, averageScore))
+      score: Math.max(0, Math.min(100, averageScore))
     });
   }
 
@@ -109,6 +117,7 @@ export function RecommendedImprovements({
 
       <SubmissionReadiness
         state={readiness}
+        score={readinessScore}
         remaining={remaining}
         total={recommended.length}
         canGenerateFinalEssay={canGenerateFinalEssay}
@@ -239,7 +248,7 @@ function ImprovementCard({
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               <ImpactStat label="Before" value={formatScore(revision.impact.beforeScore)} />
               <ImpactStat label="After" value={formatScore(revision.impact.afterScore)} />
-              <ImpactStat label="Improvement" value={revision.impact.improved ? `+${revision.impact.improvement}` : "No improvement detected"} />
+              <ImpactStat label="Risk Reduction" value={revision.impact.improved ? `${revision.impact.improvement}%` : "No risk reduction detected"} />
             </div>
           </div>
 
@@ -254,7 +263,7 @@ function ImprovementCard({
             <ul className="mt-2 space-y-2 text-sm leading-6 text-slate-400">
               {revision.changes.length
                 ? revision.changes.map((change) => <li key={change}>{change}</li>)
-                : ["Improved clarity", "Reduced generic phrasing", "Added more natural sentence flow"].map((change) => <li key={change}>{change}</li>)}
+                : ["Reduced generic phrasing", "Reduced academic cadence", "Reduced balanced summary structure"].map((change) => <li key={change}>{change}</li>)}
             </ul>
           </div>
 
@@ -301,13 +310,15 @@ function ImpactStat({ label, value }: { label: string; value: string }) {
 
 function SubmissionReadiness({
   state,
+  score,
   remaining,
   total,
   canGenerateFinalEssay,
   finalEssayGenerated,
   onGenerateFinalEssay
 }: {
-  state: "Not Ready" | "Almost Ready" | "Ready";
+  state: SubmissionReadinessState;
+  score: number;
   remaining: number;
   total: number;
   canGenerateFinalEssay: boolean;
@@ -316,7 +327,7 @@ function SubmissionReadiness({
 }) {
   const message =
     state === "Ready"
-      ? "No major issues detected."
+      ? "Estimated detector risk is in the ready range."
       : `${remaining} recommended ${remaining === 1 ? "improvement remains" : "improvements remain"}.`;
 
   return (
@@ -328,6 +339,7 @@ function SubmissionReadiness({
         </div>
         <span className="rounded-md border border-ink-700 px-3 py-1.5 text-sm font-semibold text-slate-100">{state}</span>
       </div>
+      <p className="mt-4 text-sm text-slate-400">Estimated Detector Risk: {formatScore(score)}</p>
       <p className="mt-5 text-sm leading-6 text-slate-300">{message}</p>
       {state === "Ready" && total > 0 && (
         <p className="mt-3 inline-flex items-center gap-2 text-sm text-[#8BC794]">
@@ -349,7 +361,8 @@ function SubmissionReadiness({
 
 function FinalEssayOutput({ essay }: { essay: FinalEssay }) {
   const [copied, setCopied] = useState(false);
-  const riskLabel = riskLabelFromAuthenticityScore(essay.score);
+  const riskLabel = riskLabelFromDetectorRisk(essay.score);
+  const readiness = submissionReadinessFromRisk(essay.score);
 
   async function copyFinalEssay() {
     await navigator.clipboard.writeText(essay.text);
@@ -368,8 +381,9 @@ function FinalEssayOutput({ essay }: { essay: FinalEssay }) {
       </div>
 
       <div className="mt-6 max-w-xs rounded-md border border-ink-700 bg-ink-950 p-4">
-        <p className="text-sm text-slate-400">Authenticity Score</p>
+        <p className="text-sm text-slate-400">Estimated Detector Risk</p>
         <p className="mt-2 text-4xl font-semibold">{formatScore(essay.score)}</p>
+        <p className="mt-2 text-sm text-slate-400">{detectorRiskBand(essay.score)} Risk · {readiness}</p>
       </div>
 
       <p className="mt-6 whitespace-pre-wrap text-sm leading-7 text-slate-200">{essay.text}</p>
@@ -385,10 +399,17 @@ function FinalEssayOutput({ essay }: { essay: FinalEssay }) {
   );
 }
 
-function riskLabelFromAuthenticityScore(score: number) {
-  if (score <= 50) return "high";
-  if (score <= 75) return "medium";
+function riskLabelFromDetectorRisk(score: number) {
+  if (score >= 70) return "high";
+  if (score >= 41) return "medium";
   return "low";
+}
+
+function submissionReadinessFromRisk(score: number): SubmissionReadinessState {
+  if (score <= 20) return "Ready";
+  if (score <= 40) return "Mostly Ready";
+  if (score <= 60) return "Needs Work";
+  return "High Risk";
 }
 
 export function Feedback({ analysisId }: { analysisId: string }) {

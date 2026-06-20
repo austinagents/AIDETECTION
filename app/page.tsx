@@ -3,7 +3,7 @@ import { ButtonLink, Card, SecondaryLink } from "@/components/ui";
 
 const cards = [
   {
-    title: "Authenticity Score",
+    title: "AI Detection Risk",
     body: "Review AI-like writing patterns with paragraph-level risk signals.",
     icon: ShieldCheck
   },
@@ -14,7 +14,7 @@ const cards = [
   },
   {
     title: "Revision Guidance",
-    body: "Get explainable suggestions that make drafts more specific and personal.",
+    body: "Get explainable suggestions that reduce detector risk signals.",
     icon: FileText
   }
 ];

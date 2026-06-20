@@ -1,85 +1,54 @@
 import { demoAnalysis } from "@/lib/constants";
 import { AnalysisResult } from "@/lib/types";
-import { calibrateAuthenticityScore } from "./calibrateAuthenticity";
-import { inferScoreScale, normalizeScore, normalizeScoreGroup, riskLabelFromAuthenticityScore, riskLabelFromRiskScore } from "./normalizeScore";
+import { calibrateDetectorRisk } from "./calibrateDetectorRisk";
+import { inferScoreScale, normalizeScore, normalizeScoreGroup, riskLabelFromRiskScore } from "./normalizeScore";
 
 export function normalizeAnalysisResult(result: AnalysisResult): AnalysisResult {
   const raw = result as AnalysisResult & {
-    authenticityScore?: unknown;
-    overallAuthenticity?: unknown;
-    authenticity?: unknown;
+    aiDetectionRisk?: unknown;
+    aiRisk?: unknown;
   };
+  const rawScores = (result as { scores?: Record<string, unknown> }).scores ?? {};
   const scale = inferScoreScale([
-    raw.authenticityScore,
-    raw.overallAuthenticity,
-    raw.authenticity,
+    raw.aiDetectionRisk,
+    raw.aiRisk,
     result.overallRisk,
-    result.scores?.authorialJudgment,
-    result.scores?.predictability,
-    result.scores?.structuralUniformity,
-    result.scores?.genericPhrasing,
-    result.scores?.professionalizedWritingBias,
-    result.scores?.specificity,
-    result.scores?.informationHierarchy,
-    result.scores?.personalVoice,
-    result.scores?.voiceOwnership,
-    result.scores?.informationCompression,
-    result.scores?.surpriseContrast,
-    result.scores?.naturalFlow,
-    result.scores?.emotionalTexture,
-    result.scores?.vocabularyNaturalness,
-    result.scores?.sentenceRhythmVariance,
+    ...detectorScoreValues(rawScores),
     ...(Array.isArray(result.paragraphs) ? result.paragraphs.map((paragraph) => paragraph.risk) : [])
   ]);
-  const scores = normalizeScoreGroup([
-    result.scores?.authorialJudgment,
-    result.scores?.predictability,
-    result.scores?.structuralUniformity,
-    result.scores?.genericPhrasing,
-    result.scores?.professionalizedWritingBias,
-    result.scores?.specificity,
-    result.scores?.informationHierarchy,
-    result.scores?.personalVoice,
-    result.scores?.voiceOwnership,
-    result.scores?.informationCompression,
-    result.scores?.surpriseContrast,
-    result.scores?.naturalFlow,
-    result.scores?.emotionalTexture,
-    result.scores?.vocabularyNaturalness,
-    result.scores?.sentenceRhythmVariance
-  ]);
+  const scores = normalizeScoreGroup(detectorScoreValues(rawScores));
   const normalizedScores = {
-    authorialJudgment: scores[0],
-    predictability: scores[1],
-    structuralUniformity: scores[2],
-    genericPhrasing: scores[3],
-    professionalizedWritingBias: scores[4],
-    specificity: scores[5],
-    informationHierarchy: scores[6],
-    personalVoice: scores[7],
-    voiceOwnership: scores[8],
-    informationCompression: scores[9],
-    surpriseContrast: scores[10],
-    naturalFlow: scores[11],
-    emotionalTexture: scores[12],
-    vocabularyNaturalness: scores[13],
-    sentenceRhythmVariance: scores[14]
+    textbookCadence: scores[0],
+    genericPhrasing: scores[1],
+    professionalizedWritingBias: scores[2],
+    predictableStructure: scores[3],
+    balancedConstruction: scores[4],
+    abstractNounDensity: scores[5],
+    institutionalLanguage: scores[6],
+    overExplanation: scores[7],
+    smoothCertainty: scores[8],
+    repetitiveCadence: scores[9],
+    genericExpertVoice: scores[10],
+    lowStylisticEntropy: scores[11]
   };
-  const authenticityScore = calibrateAuthenticityScore(
-    normalizeScore(raw.authenticityScore ?? raw.overallAuthenticity ?? raw.authenticity ?? result.overallRisk, { scale }),
+  const rawRisk =
+    raw.aiDetectionRisk !== undefined || raw.aiRisk !== undefined
+      ? normalizeScore(raw.aiDetectionRisk ?? raw.aiRisk, { scale })
+      : normalizeScore(result.overallRisk, { scale });
+  const detectorRisk = calibrateDetectorRisk(
+    rawRisk,
     normalizedScores
   );
 
   return {
     ...result,
-    overallRisk: authenticityScore,
+    overallRisk: detectorRisk,
     confidence: result.confidence ?? "medium",
-    riskLabel: riskLabelFromAuthenticityScore(authenticityScore),
+    riskLabel: riskLabelFromRiskScore(detectorRisk),
     summary: result.summary ?? demoAnalysis.summary,
     scores: normalizedScores,
     mainReasons: Array.isArray(result.mainReasons) ? result.mainReasons : [],
-    humanAuthorshipEvidence: Array.isArray(result.humanAuthorshipEvidence) ? result.humanAuthorshipEvidence : [],
-    aiAuthorshipEvidence: Array.isArray(result.aiAuthorshipEvidence) ? result.aiAuthorshipEvidence : [],
+    detectorSignals: detectorSignalsFor(result),
     documentEvidence: Array.isArray(result.documentEvidence) ? result.documentEvidence : [],
     paragraphs: Array.isArray(result.paragraphs)
       ? result.paragraphs.map((paragraph, index) => {
@@ -95,4 +64,28 @@ export function normalizeAnalysisResult(result: AnalysisResult): AnalysisResult 
     revisionStrategy: Array.isArray(result.revisionStrategy) ? result.revisionStrategy : [],
     styleAlignedSuggestions: Array.isArray(result.styleAlignedSuggestions) ? result.styleAlignedSuggestions : []
   };
+}
+
+function detectorScoreValues(scores: Record<string, unknown>) {
+  return [
+    scores.textbookCadence,
+    scores.genericPhrasing,
+    scores.professionalizedWritingBias,
+    scores.predictableStructure ?? scores.predictability,
+    scores.balancedConstruction ?? scores.structuralUniformity,
+    scores.abstractNounDensity,
+    scores.institutionalLanguage,
+    scores.overExplanation,
+    scores.smoothCertainty,
+    scores.repetitiveCadence,
+    scores.genericExpertVoice,
+    scores.lowStylisticEntropy ?? (typeof scores.sentenceRhythmVariance === "number" ? 100 - scores.sentenceRhythmVariance : undefined)
+  ];
+}
+
+function detectorSignalsFor(result: AnalysisResult) {
+  const raw = result as AnalysisResult & { detectorSignals?: unknown; aiAuthorshipEvidence?: unknown };
+  if (Array.isArray(raw.detectorSignals)) return raw.detectorSignals.filter((item): item is string => typeof item === "string");
+  if (Array.isArray(raw.aiAuthorshipEvidence)) return raw.aiAuthorshipEvidence.filter((item): item is string => typeof item === "string");
+  return [];
 }

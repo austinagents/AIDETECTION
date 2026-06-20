@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Writing Review",
-  description: "AI authenticity checks and personal writing-style analysis."
+  description: "AI detection risk checks and personal writing-style analysis."
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
