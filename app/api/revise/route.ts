@@ -14,6 +14,7 @@ export async function POST(request: Request) {
     const analysisId = String(body.analysisId || "");
     const paragraphIndex = Number(body.paragraphIndex ?? 0);
     const revisionCount = Math.max(1, Number(body.revisionCount ?? 1));
+    const beforeScoreOverride = Number(body.beforeScoreOverride);
 
     if (!paragraph.trim()) throw new AppError("VALIDATION_ERROR", "Choose a paragraph to revise.", 400);
 
@@ -33,7 +34,10 @@ export async function POST(request: Request) {
       contentType,
       styleProfile: profile?.profile ?? null
     });
-    const beforeScore = originalAnalysis.overallRisk;
+    const detectorBeforeScore = originalAnalysis.overallRisk;
+    const beforeScore = Number.isFinite(beforeScoreOverride)
+      ? Math.max(0, Math.min(100, Math.round(beforeScoreOverride)))
+      : detectorBeforeScore;
     const originalEvidence = strongestAiEvidence(originalAnalysis);
     let bestRevision = await reviseParagraph({ paragraph, revisionType, contentType, styleProfile: profile?.profile ?? null });
     let bestAnalysis = await analyzeWriting({

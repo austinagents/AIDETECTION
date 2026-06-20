@@ -87,6 +87,7 @@ function ImprovementCard({
   onImproved: () => void;
 }) {
   const [displayedText, setDisplayedText] = useState(paragraph.text);
+  const [currentScore, setCurrentScore] = useState(paragraph.risk);
   const [revision, setRevision] = useState<RevisionState | null>(null);
   const [revisionCount, setRevisionCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -106,7 +107,8 @@ function ImprovementCard({
           paragraphIndex: paragraph.index,
           paragraph: displayedText,
           revisionType: "improve",
-          revisionCount: nextRevisionCount
+          revisionCount: nextRevisionCount,
+          beforeScoreOverride: currentScore
         })
       });
       const data = await response.json();
@@ -122,6 +124,9 @@ function ImprovementCard({
         impact: data.impact
       });
       setRevisionCount(nextRevisionCount);
+      if (typeof data.impact?.afterScore === "number") {
+        setCurrentScore(data.impact.afterScore);
+      }
       if (data.impact?.improved) onImproved();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Revision failed.");
@@ -145,7 +150,7 @@ function ImprovementCard({
           <p className="mt-1 text-xs text-slate-500">Needs attention</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold">{formatScore(paragraph.risk)}</span>
+          <span className="text-sm font-semibold">{formatScore(currentScore)}</span>
           <RiskBadge label={paragraph.riskLabel} />
         </div>
       </div>
