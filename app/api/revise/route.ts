@@ -36,32 +36,9 @@ export async function POST(request: Request) {
     const maxWordCount = Math.floor(originalWordCount * 1.3);
     let revision = await reviseParagraph({ paragraph, revisionType, contentType, styleProfile: profile?.profile ?? null });
     let revisedWordCount = countWords(revision.revisedText);
+    let validationFailures = getRevisionValidationFailures(revision.revisedText, revisedWordCount, minWordCount, maxWordCount);
 
-    if (!isWithinRevisionWordRange(revisedWordCount, minWordCount, maxWordCount)) {
-      revision = await reviseParagraph({
-        paragraph,
-        revisionType,
-        contentType,
-        styleProfile: profile?.profile ?? null,
-        preserveWordCount: {
-          originalWordCount,
-          previousRevisedWordCount: revisedWordCount,
-          minWordCount,
-          maxWordCount
-        }
-      });
-      revisedWordCount = countWords(revision.revisedText);
-    }
-
-    if (!isWithinRevisionWordRange(revisedWordCount, minWordCount, maxWordCount)) {
-      throw new AppError(
-        "VALIDATION_ERROR",
-        "The revised paragraph changed length too much, so it was blocked. Try improving it again.",
-        422
-      );
-    }
-
-    if (getBannedRevisionViolations(revision.revisedText).length) {
+    if (validationFailures.length) {
       revision = await reviseParagraph({
         paragraph,
         revisionType,
@@ -74,19 +51,16 @@ export async function POST(request: Request) {
           maxWordCount
         },
         validationFeedback:
-          "Rewrite again. Do not use em dashes or hyphenated word compounds. Replace hyphenated compounds with normal phrasing."
+          `Repair the revision. Validation failed because it ${validationFailures.join(", ")}. Rewrite again while preserving all meaning, staying within the word count range, and avoiding banned punctuation.`
       });
       revisedWordCount = countWords(revision.revisedText);
+      validationFailures = getRevisionValidationFailures(revision.revisedText, revisedWordCount, minWordCount, maxWordCount);
     }
 
-    if (getBannedRevisionViolations(revision.revisedText).length) {
-      throw new Error("BANNED_PUNCTUATION_VALIDATION_ERROR");
-    }
-
-    if (!isWithinRevisionWordRange(revisedWordCount, minWordCount, maxWordCount)) {
+    if (validationFailures.length) {
       throw new AppError(
         "VALIDATION_ERROR",
-        "The revised paragraph changed length too much, so it was blocked. Try improving it again.",
+        "Couldn't generate a compliant revision. Try again.",
         422
       );
     }
@@ -157,6 +131,16 @@ const bannedRevisionPatterns = [
 
 function getBannedRevisionViolations(text: string) {
   return bannedRevisionPatterns.filter(({ pattern }) => pattern.test(text));
+}
+
+function getRevisionValidationFailures(text: string, wordCount: number, minWordCount: number, maxWordCount: number) {
+  const failures: string[] = [];
+  if (wordCount < minWordCount) failures.push("is too short");
+  if (wordCount > maxWordCount) failures.push("is too long");
+  for (const violation of getBannedRevisionViolations(text)) {
+    failures.push(`contains ${violation.name}`);
+  }
+  return failures;
 }
 
 function strongestAiEvidence(analysis: Awaited<ReturnType<typeof analyzeWriting>>) {
