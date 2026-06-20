@@ -67,17 +67,17 @@ Word count requirement: ${
 Paragraph: ${input.paragraph}
 
 Your job is not to summarize, shorten, simplify, or improve readability.
-Your job is to preserve the paragraph's full meaning while removing common AI writing tells.
+Your job is to preserve the paragraph's full meaning while transforming paragraph architecture to remove common AI writing tells.
 
 Core revision priority order:
 1. Preserve all original meaning.
 2. Preserve all claims, examples, facts, and supporting details.
 3. Preserve length within 95% to 130% of the original paragraph word count.
-4. Remove AI detector fingerprints.
+4. Transform paragraph architecture to remove AI detector fingerprints.
 5. Keep essay-appropriate tone.
 6. Avoid banned punctuation and style patterns.
 
-Content preservation is higher priority than detector-risk reduction. Transform the paragraph. Do not reduce it.
+Content preservation is higher priority than detector-risk reduction. Transform the paragraph architecture. Do not reduce the paragraph.
 
 Hard requirements:
 - Preserve every major idea from the original paragraph.
@@ -90,6 +90,8 @@ Hard requirements:
 - Keep the tone appropriate for an essay.
 - Do not make the writing casual, childish, poetic, or dramatic.
 - Rewrite the paragraph as a competent human essay paragraph.
+- Do not automatically preserve sentence count, sentence order, explanation order, paragraph opening style, or paragraph ending style.
+- Change paragraph movement when possible while preserving meaning.
 
 Remove or reduce these AI tells when present:
 - overly formal tone
@@ -109,6 +111,47 @@ Remove or reduce these AI tells when present:
 - vague attribution
 - promotional or inflated wording
 - AI-style filler phrases
+
+Architecture rules:
+- Do not treat wording as the primary fingerprint. Paragraph structure is the primary fingerprint.
+- Do not preserve the original architecture just because it is coherent.
+- Do not automatically preserve a broad opening, an explanatory middle, or a significance ending.
+- If the original uses a broad claim first, consider starting with a concrete detail, example, consequence, problem, or specific observation.
+- If the original ends with a universal or generic significance statement, end instead on evidence, consequence, observation, or a natural transition when possible.
+- Vary sentence count when possible while staying within the word-count range.
+
+Avoid these paragraph movements:
+- broad claim to explanation to example to significance
+- historical topic sentence to context to explanation to list to conclusion
+- define to explain to broaden to universalize
+- topic sentence to support to significance
+
+Allowed replacement movements:
+- example to explanation to broader point
+- historical detail to consequence to interpretation
+- contrast to explanation to resolution
+- question or problem to evidence to answer
+- specific observation to expansion to conclusion
+- fact to implication to supporting detail
+
+Document-level variation:
+- Do not repeatedly choose the same paragraph architecture.
+- Reduce document-wide repetition by making this paragraph move differently from a standard textbook overview.
+
+Openings to avoid:
+- "X is one of..."
+- "To understand X..."
+- "As societies developed..."
+- "This demonstrates..."
+- "These narratives reveal..."
+- "Such stories reflect..."
+- Do not replace these with equivalent textbook openings.
+
+Endings to avoid:
+- universal conclusions
+- broad importance statements
+- omniscient summary sentences
+- generic significance endings
 
 Banned output patterns:
 - Never use the em dash character.
