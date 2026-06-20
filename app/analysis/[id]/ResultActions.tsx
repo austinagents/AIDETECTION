@@ -88,6 +88,7 @@ function ImprovementCard({
 }) {
   const [displayedText, setDisplayedText] = useState(paragraph.text);
   const [revision, setRevision] = useState<RevisionState | null>(null);
+  const [revisionCount, setRevisionCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
@@ -95,6 +96,7 @@ function ImprovementCard({
   async function revise() {
     setLoading(true);
     setError("");
+    const nextRevisionCount = revisionCount + 1;
     try {
       const response = await fetch("/api/revise", {
         method: "POST",
@@ -103,7 +105,8 @@ function ImprovementCard({
           analysisId,
           paragraphIndex: paragraph.index,
           paragraph: displayedText,
-          revisionType: "improve"
+          revisionType: "improve",
+          revisionCount: nextRevisionCount
         })
       });
       const data = await response.json();
@@ -118,6 +121,7 @@ function ImprovementCard({
         remainingIssues: Array.isArray(data.remainingIssues) ? data.remainingIssues.slice(0, 5) : [],
         impact: data.impact
       });
+      setRevisionCount(nextRevisionCount);
       if (data.impact?.improved) onImproved();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Revision failed.");
