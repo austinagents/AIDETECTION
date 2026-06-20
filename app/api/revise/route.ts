@@ -13,8 +13,6 @@ export async function POST(request: Request) {
     const revisionType: RevisionType = "improve";
     const analysisId = String(body.analysisId || "");
     const paragraphIndex = Number(body.paragraphIndex ?? 0);
-    const revisionCount = Math.max(1, Number(body.revisionCount ?? 1));
-    const beforeScoreOverride = Number(body.beforeScoreOverride);
 
     if (!paragraph.trim()) throw new AppError("VALIDATION_ERROR", "Choose a paragraph to revise.", 400);
 
@@ -34,10 +32,7 @@ export async function POST(request: Request) {
       contentType,
       styleProfile: profile?.profile ?? null
     });
-    const detectorBeforeScore = originalAnalysis.overallRisk;
-    const beforeScore = Number.isFinite(beforeScoreOverride)
-      ? Math.max(0, Math.min(100, Math.round(beforeScoreOverride)))
-      : detectorBeforeScore;
+    const beforeScore = originalAnalysis.overallRisk;
     const originalEvidence = strongestAiEvidence(originalAnalysis);
     let bestRevision = await reviseParagraph({ paragraph, revisionType, contentType, styleProfile: profile?.profile ?? null });
     let bestAnalysis = await analyzeWriting({
@@ -80,8 +75,7 @@ export async function POST(request: Request) {
 
     const revision = bestRevision;
     const revisedAnalysis = bestAnalysis;
-    const detectedAfterScore = revisedAnalysis.overallRisk;
-    const afterScore = revisionType === "improve" ? applyRevisionScoreDefault(detectedAfterScore, revisionCount, analysisId, paragraphIndex) : detectedAfterScore;
+    const afterScore = revisedAnalysis.overallRisk;
     const improvement = Math.max(0, beforeScore - afterScore);
 
     if (analysisId) {
@@ -115,26 +109,6 @@ export async function POST(request: Request) {
     const response = publicError(isAppError(error) ? error : error);
     return NextResponse.json(response.body, { status: response.status });
   }
-}
-
-function applyRevisionScoreDefault(score: number, revisionCount: number, analysisId: string, paragraphIndex: number) {
-  const band =
-    revisionCount <= 1
-      ? { min: 18, max: 20 }
-      : revisionCount === 2
-        ? { min: 10, max: 15 }
-        : { min: 3, max: 9 };
-  const defaultScore = stableBandValue(`${analysisId}:${paragraphIndex}:${revisionCount}`, band.min, band.max);
-
-  return Math.min(score, defaultScore);
-}
-
-function stableBandValue(seed: string, min: number, max: number) {
-  let hash = 0;
-  for (let index = 0; index < seed.length; index += 1) {
-    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
-  }
-  return min + (hash % (max - min + 1));
 }
 
 function overlapCount(a: string[], b: string[]) {

@@ -5,7 +5,7 @@ import { CheckCircle2, Copy, ThumbsDown, ThumbsUp } from "lucide-react";
 import { RiskBadge } from "@/components/RiskBadge";
 import { Card } from "@/components/ui";
 import { detectorRiskBand, formatScore } from "@/lib/scoring/normalizeScore";
-import { ParagraphAnalysis } from "@/lib/types";
+import { AnalysisResult, ParagraphAnalysis } from "@/lib/types";
 
 type RevisionImpact = {
   beforeScore: number;
@@ -27,12 +27,11 @@ type CompletedImprovement = {
   paragraphIndex: number;
   originalText: string;
   latestRevisedText: string;
-  latestAfterScore: number;
 };
 
 type FinalEssay = {
   text: string;
-  score: number;
+  result: AnalysisResult;
 };
 
 type SubmissionReadinessState = "Ready" | "Mostly Ready" | "Needs Work" | "High Risk";
@@ -51,15 +50,14 @@ export function RecommendedImprovements({
   const [completed, setCompleted] = useState<Set<number>>(new Set());
   const [completedImprovements, setCompletedImprovements] = useState<Record<number, CompletedImprovement>>({});
   const [finalEssay, setFinalEssay] = useState<FinalEssay | null>(null);
+  const [finalLoading, setFinalLoading] = useState(false);
+  const [finalError, setFinalError] = useState("");
   const remaining = Math.max(0, recommended.length - completed.size);
-  const readinessScore = recommended.length
-    ? Math.round(
-        recommended.reduce((sum, paragraph) => {
-          return sum + (completedImprovements[paragraph.index]?.latestAfterScore ?? paragraph.risk);
-        }, 0) / recommended.length
-      )
-    : 0;
-  const readiness = submissionReadinessFromRisk(readinessScore);
+  const openRisk = recommended
+    .filter((paragraph) => !completed.has(paragraph.index))
+    .reduce((max, paragraph) => Math.max(max, paragraph.risk), 0);
+  const readiness: SubmissionReadinessState =
+    remaining === 0 ? "Ready" : completed.size > 0 ? "Mostly Ready" : openRisk >= 61 ? "High Risk" : "Needs Work";
   const canGenerateFinalEssay = recommended.length > 0 && completed.size === recommended.length;
 
   function markImproved(improvement: CompletedImprovement) {
@@ -75,21 +73,33 @@ export function RecommendedImprovements({
     setFinalEssay(null);
   }
 
-  function generateFinalEssay() {
+  async function generateFinalEssay() {
     const finalParagraphs = paragraphs.map((paragraph) => {
       return completedImprovements[paragraph.index]?.latestRevisedText ?? paragraph.text;
     });
-    const afterScores = recommended
-      .map((paragraph) => completedImprovements[paragraph.index]?.latestAfterScore)
-      .filter((score): score is number => typeof score === "number");
-    const averageScore = afterScores.length
-      ? Math.round(afterScores.reduce((sum, score) => sum + score, 0) / afterScores.length)
-      : 0;
-
-    setFinalEssay({
-      text: finalParagraphs.join("\n\n"),
-      score: Math.max(0, Math.min(100, averageScore))
-    });
+    const finalText = finalParagraphs.join("\n\n");
+    setFinalLoading(true);
+    setFinalError("");
+    try {
+      const response = await fetch("/api/final-essay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analysisId, content: finalText })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        const detail = data.details ? ` (${data.code}: ${data.details})` : data.code ? ` (${data.code})` : "";
+        throw new Error(`${data.error || "Final essay analysis failed."}${detail}`);
+      }
+      setFinalEssay({
+        text: finalText,
+        result: data.result
+      });
+    } catch (caught) {
+      setFinalError(caught instanceof Error ? caught.message : "Final essay analysis failed.");
+    } finally {
+      setFinalLoading(false);
+    }
   }
 
   return (
@@ -117,13 +127,15 @@ export function RecommendedImprovements({
 
       <SubmissionReadiness
         state={readiness}
-        score={readinessScore}
         remaining={remaining}
         total={recommended.length}
         canGenerateFinalEssay={canGenerateFinalEssay}
         finalEssayGenerated={Boolean(finalEssay)}
+        loading={finalLoading}
         onGenerateFinalEssay={generateFinalEssay}
       />
+
+      {finalError && <p className="mt-3 text-sm text-[#D98A8D]">{finalError}</p>}
 
       {finalEssay && <FinalEssayOutput essay={finalEssay} />}
     </>
@@ -144,7 +156,6 @@ function ImprovementCard({
   const [displayedText, setDisplayedText] = useState(paragraph.text);
   const [currentScore, setCurrentScore] = useState(paragraph.risk);
   const [revision, setRevision] = useState<RevisionState | null>(null);
-  const [revisionCount, setRevisionCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
@@ -152,7 +163,6 @@ function ImprovementCard({
   async function revise() {
     setLoading(true);
     setError("");
-    const nextRevisionCount = revisionCount + 1;
     try {
       const response = await fetch("/api/revise", {
         method: "POST",
@@ -161,9 +171,7 @@ function ImprovementCard({
           analysisId,
           paragraphIndex: paragraph.index,
           paragraph: displayedText,
-          revisionType: "improve",
-          revisionCount: nextRevisionCount,
-          beforeScoreOverride: currentScore
+          revisionType: "improve"
         })
       });
       const data = await response.json();
@@ -178,7 +186,6 @@ function ImprovementCard({
         remainingIssues: Array.isArray(data.remainingIssues) ? data.remainingIssues.slice(0, 5) : [],
         impact: data.impact
       });
-      setRevisionCount(nextRevisionCount);
       if (typeof data.impact?.afterScore === "number") {
         setCurrentScore(data.impact.afterScore);
       }
@@ -186,8 +193,7 @@ function ImprovementCard({
         onImproved({
           paragraphIndex: paragraph.index,
           originalText: paragraph.text,
-          latestRevisedText: data.revisedText,
-          latestAfterScore: data.impact.afterScore
+          latestRevisedText: data.revisedText
         });
       }
     } catch (caught) {
@@ -205,7 +211,7 @@ function ImprovementCard({
   }
 
   return (
-    <Card className={paragraph.riskLabel === "high" ? "border-risk-high/40 p-6" : "p-6"}>
+    <Card className={riskLabelFromDetectorRisk(currentScore) === "high" ? "border-risk-high/40 p-6" : "p-6"}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold text-slate-300">{label}</p>
@@ -213,7 +219,7 @@ function ImprovementCard({
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold">{formatScore(currentScore)}</span>
-          <RiskBadge label={paragraph.riskLabel} />
+          <RiskBadge label={riskLabelFromDetectorRisk(currentScore)} />
         </div>
       </div>
 
@@ -244,7 +250,7 @@ function ImprovementCard({
       {revision && (
         <div className="mt-5 space-y-4 rounded-md border border-ink-700 bg-ink-950 p-4">
           <div>
-            <p className="text-sm font-medium text-slate-300">Revision Impact</p>
+            <p className="text-sm font-medium text-slate-300">AI Detection</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               <ImpactStat label="Before" value={formatScore(revision.impact.beforeScore)} />
               <ImpactStat label="After" value={formatScore(revision.impact.afterScore)} />
@@ -310,19 +316,19 @@ function ImpactStat({ label, value }: { label: string; value: string }) {
 
 function SubmissionReadiness({
   state,
-  score,
   remaining,
   total,
   canGenerateFinalEssay,
   finalEssayGenerated,
+  loading,
   onGenerateFinalEssay
 }: {
   state: SubmissionReadinessState;
-  score: number;
   remaining: number;
   total: number;
   canGenerateFinalEssay: boolean;
   finalEssayGenerated: boolean;
+  loading: boolean;
   onGenerateFinalEssay: () => void;
 }) {
   const message =
@@ -339,7 +345,6 @@ function SubmissionReadiness({
         </div>
         <span className="rounded-md border border-ink-700 px-3 py-1.5 text-sm font-semibold text-slate-100">{state}</span>
       </div>
-      <p className="mt-4 text-sm text-slate-400">Estimated Detector Risk: {formatScore(score)}</p>
       <p className="mt-5 text-sm leading-6 text-slate-300">{message}</p>
       {state === "Ready" && total > 0 && (
         <p className="mt-3 inline-flex items-center gap-2 text-sm text-[#8BC794]">
@@ -351,8 +356,9 @@ function SubmissionReadiness({
         <button
           onClick={onGenerateFinalEssay}
           className="mt-5 inline-flex items-center gap-2 rounded-md border border-ink-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-ink-800"
+          disabled={loading}
         >
-          {finalEssayGenerated ? "Regenerate Final Essay" : "Generate Final Essay"}
+          {loading ? "Analyzing..." : finalEssayGenerated ? "Regenerate Final Essay" : "Generate Final Essay"}
         </button>
       )}
     </Card>
@@ -361,8 +367,9 @@ function SubmissionReadiness({
 
 function FinalEssayOutput({ essay }: { essay: FinalEssay }) {
   const [copied, setCopied] = useState(false);
-  const riskLabel = riskLabelFromDetectorRisk(essay.score);
-  const readiness = submissionReadinessFromRisk(essay.score);
+  const score = essay.result.overallRisk;
+  const riskLabel = riskLabelFromDetectorRisk(score);
+  const readiness = submissionReadinessFromRisk(score);
 
   async function copyFinalEssay() {
     await navigator.clipboard.writeText(essay.text);
@@ -382,9 +389,11 @@ function FinalEssayOutput({ essay }: { essay: FinalEssay }) {
 
       <div className="mt-6 max-w-xs rounded-md border border-ink-700 bg-ink-950 p-4">
         <p className="text-sm text-slate-400">Estimated Detector Risk</p>
-        <p className="mt-2 text-4xl font-semibold">{formatScore(essay.score)}</p>
-        <p className="mt-2 text-sm text-slate-400">{detectorRiskBand(essay.score)} Risk · {readiness}</p>
+        <p className="mt-2 text-4xl font-semibold">{formatScore(score)}</p>
+        <p className="mt-2 text-sm text-slate-400">{detectorRiskBand(score)} Risk · {readiness}</p>
       </div>
+
+      {essay.result.summary && <p className="mt-5 text-sm leading-6 text-slate-400">{essay.result.summary}</p>}
 
       <p className="mt-6 whitespace-pre-wrap text-sm leading-7 text-slate-200">{essay.text}</p>
 

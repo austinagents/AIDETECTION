@@ -52,7 +52,7 @@ export function normalizeAnalysisResult(result: AnalysisResult): AnalysisResult 
     documentEvidence: Array.isArray(result.documentEvidence) ? result.documentEvidence : [],
     paragraphs: Array.isArray(result.paragraphs)
       ? result.paragraphs.map((paragraph, index) => {
-          const risk = normalizeScore(paragraph.risk, { scale });
+          const risk = calibrateDetectorRisk(normalizeScore(paragraph.risk, { scale }), normalizedScores, paragraph.text);
           return {
             ...paragraph,
             index: paragraph.index ?? index,

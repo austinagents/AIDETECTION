@@ -47,7 +47,7 @@ AI detector fingerprints increase risk:
 - Flat summary tone: encyclopedia voice, informational summary tone, educational overview style, evenly weighted facts.
 - Template-like transitions: obvious progression, predictable flow, mechanical transitions, essay-template structure.
 - Textbook cadence: repeated broad claim, explanation, and significance pattern across paragraphs.
-- Essay template structure: introduction, definition, historical context, examples, interpretation, conclusion. Perfect academic structure is neutral or slightly AI-leaning, not human evidence.
+- Essay template structure: introduction, definition, historical context, examples, interpretation, conclusion. Perfect academic structure is neutral or slightly AI-leaning, not a reason to lower detector risk.
 - Predictable expansion pattern: opening a topic, explaining why it matters, describing what it explains, and concluding with social or cultural significance.
 - Excessive confidence: smooth factual explanation across a whole document without uncertainty, limits, or source-aware language.
 
@@ -209,7 +209,7 @@ function normalizeAnalysis(result: AnalysisResult, content: string): AnalysisRes
       reasons: ["This paragraph may need review before it can be scored confidently."],
       suggestions: ["Reduce detector risk signals such as generic framing, academic cadence, and polished summary structure."]
     }))) as ParagraphAnalysis[]).map((paragraph, index) => {
-      const risk = normalizeScore(paragraph.risk, { scale: scoreScale });
+      const risk = calibrateDetectorRisk(normalizeScore(paragraph.risk, { scale: scoreScale }), scores, paragraph.text);
       return {
         ...paragraph,
         index: paragraph.index ?? index,
