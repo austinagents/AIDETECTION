@@ -13,8 +13,12 @@ export async function POST(request: Request) {
     const revisionType: RevisionType = "improve";
     const analysisId = String(body.analysisId || "");
     const paragraphIndex = Number(body.paragraphIndex ?? 0);
+    const beforeRiskDisplay = body.beforeRiskDisplay;
 
     if (!paragraph.trim()) throw new AppError("VALIDATION_ERROR", "Choose a paragraph to revise.", 400);
+    if (typeof beforeRiskDisplay !== "number" || !Number.isFinite(beforeRiskDisplay)) {
+      throw new AppError("VALIDATION_ERROR", "The displayed paragraph risk is required before revising.", 400);
+    }
 
     const storage = getStorage();
     const profile = await storage.getStyleProfile(LOCAL_USER_ID).catch((error) => {
@@ -26,55 +30,14 @@ export async function POST(request: Request) {
         })
       : null;
     const contentType = sourceAnalysis?.contentType ?? "Other";
-    const originalAnalysis = await analyzeWriting({
-      title: "Original paragraph",
-      content: paragraph,
-      contentType,
-      styleProfile: profile?.profile ?? null
-    });
-    const beforeScore = originalAnalysis.overallRisk;
-    const originalEvidence = strongestAiEvidence(originalAnalysis);
-    let bestRevision = await reviseParagraph({ paragraph, revisionType, contentType, styleProfile: profile?.profile ?? null });
-    let bestAnalysis = await analyzeWriting({
+    const beforeScore = beforeRiskDisplay;
+    const revision = await reviseParagraph({ paragraph, revisionType, contentType, styleProfile: profile?.profile ?? null });
+    const revisedAnalysis = await analyzeWriting({
       title: "Revised paragraph",
-      content: bestRevision.revisedText,
+      content: revision.revisedText,
       contentType,
       styleProfile: profile?.profile ?? null
     });
-    let bestEvidence = strongestAiEvidence(bestAnalysis);
-
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      const majorEvidence = bestEvidence;
-      if (bestAnalysis.overallRisk <= 20 || majorEvidence.length === 0) break;
-      const nextRevision = await reviseParagraph({
-        paragraph,
-        revisionType,
-        contentType,
-        styleProfile: profile?.profile ?? null,
-        evaluatorFeedback: {
-          priorRevision: bestRevision.revisedText,
-          remainingAIEvidencePresent: majorEvidence
-        }
-      });
-      const nextAnalysis = await analyzeWriting({
-        title: "Revised paragraph",
-        content: nextRevision.revisedText,
-        contentType,
-        styleProfile: profile?.profile ?? null
-      });
-      const nextEvidence = strongestAiEvidence(nextAnalysis);
-      const currentOverlap = overlapCount(originalEvidence, bestEvidence);
-      const nextOverlap = overlapCount(originalEvidence, nextEvidence);
-      const reducedFingerprints = nextEvidence.length < bestEvidence.length || nextOverlap < currentOverlap;
-      if (nextAnalysis.overallRisk < bestAnalysis.overallRisk || reducedFingerprints) {
-        bestRevision = nextRevision;
-        bestAnalysis = nextAnalysis;
-        bestEvidence = nextEvidence;
-      }
-    }
-
-    const revision = bestRevision;
-    const revisedAnalysis = bestAnalysis;
     const afterScore = revisedAnalysis.overallRisk;
     const improvement = Math.max(0, beforeScore - afterScore);
 
@@ -95,6 +58,9 @@ export async function POST(request: Request) {
       ok: true,
       ...revision,
       impact: {
+        beforeRisk: beforeScore,
+        afterRisk: afterScore,
+        riskReduction: improvement,
         beforeScore,
         afterScore,
         improvement,
@@ -111,14 +77,9 @@ export async function POST(request: Request) {
   }
 }
 
-function overlapCount(a: string[], b: string[]) {
-  const second = new Set(b);
-  return a.filter((item) => second.has(item)).length;
-}
-
 function strongestAiEvidence(analysis: Awaited<ReturnType<typeof analyzeWriting>>) {
   const scores = analysis.scores;
-    const issues = [
+  const issues = [
     scores.professionalizedWritingBias >= 50 ? ["professionalized writing bias", scores.professionalizedWritingBias] : null,
     scores.genericPhrasing >= 50 ? ["generic framing", scores.genericPhrasing] : null,
     scores.predictableStructure >= 62 ? ["predictable structure", scores.predictableStructure] : null,

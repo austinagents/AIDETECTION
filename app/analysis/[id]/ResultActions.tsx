@@ -161,6 +161,7 @@ function ImprovementCard({
   const [error, setError] = useState("");
 
   async function revise() {
+    const beforeRiskDisplay = currentScore;
     setLoading(true);
     setError("");
     try {
@@ -171,7 +172,8 @@ function ImprovementCard({
           analysisId,
           paragraphIndex: paragraph.index,
           paragraph: displayedText,
-          revisionType: "improve"
+          revisionType: "improve",
+          beforeRiskDisplay
         })
       });
       const data = await response.json();
