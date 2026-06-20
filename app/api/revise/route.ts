@@ -61,6 +61,36 @@ export async function POST(request: Request) {
       );
     }
 
+    if (getBannedRevisionViolations(revision.revisedText).length) {
+      revision = await reviseParagraph({
+        paragraph,
+        revisionType,
+        contentType,
+        styleProfile: profile?.profile ?? null,
+        preserveWordCount: {
+          originalWordCount,
+          previousRevisedWordCount: revisedWordCount,
+          minWordCount,
+          maxWordCount
+        },
+        validationFeedback:
+          "Rewrite again. Do not use em dashes or hyphenated word compounds. Replace hyphenated compounds with normal phrasing."
+      });
+      revisedWordCount = countWords(revision.revisedText);
+    }
+
+    if (getBannedRevisionViolations(revision.revisedText).length) {
+      throw new Error("BANNED_PUNCTUATION_VALIDATION_ERROR");
+    }
+
+    if (!isWithinRevisionWordRange(revisedWordCount, minWordCount, maxWordCount)) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "The revised paragraph changed length too much, so it was blocked. Try improving it again.",
+        422
+      );
+    }
+
     const revisedAnalysis = await analyzeWriting({
       title: "Revised paragraph",
       content: revision.revisedText,
@@ -112,6 +142,21 @@ function countWords(text: string) {
 
 function isWithinRevisionWordRange(wordCount: number, minWordCount: number, maxWordCount: number) {
   return wordCount >= minWordCount && wordCount <= maxWordCount;
+}
+
+const bannedRevisionPatterns = [
+  {
+    name: "em dash",
+    pattern: /—/
+  },
+  {
+    name: "hyphenated compound",
+    pattern: /\b[A-Za-z]+-[A-Za-z]+\b/
+  }
+];
+
+function getBannedRevisionViolations(text: string) {
+  return bannedRevisionPatterns.filter(({ pattern }) => pattern.test(text));
 }
 
 function strongestAiEvidence(analysis: Awaited<ReturnType<typeof analyzeWriting>>) {

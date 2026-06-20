@@ -22,6 +22,7 @@ export async function reviseParagraph(input: {
     minWordCount?: number;
     maxWordCount?: number;
   };
+  validationFeedback?: string;
 }) {
   const client = getOpenAIClient();
   const contentType = input.contentType ?? "Other";
@@ -53,6 +54,7 @@ Request: ${input.revisionType}
 Content type: ${contentType}
 Style profile: ${input.styleProfile ? JSON.stringify(input.styleProfile) : "No profile available"}
 Evaluator feedback from prior attempt: ${input.evaluatorFeedback ? JSON.stringify(input.evaluatorFeedback) : "None"}
+Validation feedback from prior attempt: ${input.validationFeedback ?? "None"}
 Word count requirement: ${
             input.preserveWordCount
               ? `The revised paragraph must be between ${input.preserveWordCount.minWordCount ?? input.preserveWordCount.originalWordCount} and ${
@@ -92,8 +94,9 @@ For Essay revisions, remove these specific AI-authorship fingerprints when prese
 Do not treat the revision as successful just because it is simpler, shorter, clearer, more conversational, or has changed enough words. It is successful only if the major detector risk signals are materially reduced while preserving meaning and essay-appropriate tone.
 
 Hard revision rules:
-- Never use em dashes.
-- Avoid repeated hyphenated compound constructions.
+- Never use the em dash character (—). Use a period, comma, colon, semicolon, or parentheses instead.
+- Never use hyphenated compounds or two-word compounds joined by a hyphen.
+- Do not write phrases like AI-native, video-generated, up-to-date, well-known, textbook-like, human-written, AI-generated, detector-friendly, student-sounding, or context-aware. Use normal wording instead.
 - Do not use formulaic contrast templates such as "It is not X. It is Y", "This is not about X. It is about Y", "The real issue is not X, but Y", "Not because of X, but because of Y", or "This was not merely X. It was Y".
 - Avoid generic depth framing such as "At its core", "On a deeper level", "The true significance", and similar artificial insight markers.
 - Avoid generic institutional framing such as "This highlights", "This demonstrates", "This underscores", "This provides insight into", and similar study/report moves unless the source context clearly requires them.
