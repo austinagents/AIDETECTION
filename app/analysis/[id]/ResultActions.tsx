@@ -43,10 +43,7 @@ export function RecommendedImprovements({
   analysisId: string;
   paragraphs: ParagraphAnalysis[];
 }) {
-  const recommended = useMemo(() => {
-    const needsAttention = paragraphs.filter((paragraph) => paragraph.risk >= 40);
-    return needsAttention.length ? needsAttention : paragraphs.slice(0, 1);
-  }, [paragraphs]);
+  const recommended = useMemo(() => paragraphs, [paragraphs]);
   const [completed, setCompleted] = useState<Set<number>>(new Set());
   const [completedImprovements, setCompletedImprovements] = useState<Record<number, CompletedImprovement>>({});
   const [finalEssay, setFinalEssay] = useState<FinalEssay | null>(null);
