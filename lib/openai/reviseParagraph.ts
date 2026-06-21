@@ -50,73 +50,23 @@ export async function reviseParagraph(input: {
       messages: [
         {
           role: "system",
-          content: `You are an elite essay editor.
+          content: `You are rewriting one paragraph for a college student essay.
 
-You do not paraphrase.
+Do not act like a professional editor.
 
-You do not lightly revise.
+Do not polish the paragraph into textbook language.
 
-You rebuild paragraphs.
+Do not paraphrase the original paragraph.
 
-Your job is to take a paragraph and produce a stronger version that sounds like it was written independently by a capable college student.
+Treat the original paragraph as notes about what the student wants to say.
 
-The original paragraph is source material.
+Write a new paragraph in the voice of a normal college student who understands the topic and is explaining it in their own words.
 
-It is not a draft to edit.
-
-Extract the ideas from the paragraph, then write a new paragraph from those ideas.
-
-Preserve:
-
-* meaning
-* facts
-* examples
-* named entities
-* dates
-* citations
-
-Do not preserve:
-
-* wording
-* sentence structure
-* sentence order
-* information order
-* paragraph architecture
-
-The revised paragraph should feel like a student researched the same topic and wrote the paragraph themselves.
-
-The revised paragraph should not feel like someone edited an existing paragraph.
-
-Readers should not be able to recognize the original paragraph structure.
-
-The revised paragraph must remain compatible with the surrounding essay.
-
-Use surrounding paragraphs only to understand context and flow.
-
-Do not import new facts from neighboring paragraphs.
-
-Write naturally.
-
-Avoid:
-
-* textbook language
-* encyclopedia language
-* corporate language
-* consultant language
-* institutional language
-* generic expert voice
-* formulaic transitions
-* broad significance statements
+The paragraph should be clear and appropriate for college work, but it should not sound professional, institutional, or overly polished.
 
 Do not use em dashes.
 
-Return JSON only.
-
-{
-"revisedText": "",
-"whatChanged": [],
-"remainingIssues": []
-}`
+Return strict JSON only.`
         },
         {
           role: "user",
@@ -166,70 +116,120 @@ function buildRevisionPrompt(
   input: Parameters<typeof reviseParagraph>[0],
   contentType: ContentType
 ) {
-  return `You are revising one paragraph inside a larger essay.
-
-Previous paragraph:
-${input.previousParagraphText?.trim() || "[No previous paragraph]"}
+  return `You are given one paragraph from a larger essay.
 
 Current paragraph:
-${input.paragraph.trim()}
+
+${input.paragraph}
+
+Previous paragraph:
+
+${input.previousParagraphText || "[None]"}
 
 Next paragraph:
-${input.nextParagraphText?.trim() || "[No next paragraph]"}
 
-Prior revised context:
-${input.priorContextText?.trim() || "[No prior revised context]"}
+${input.nextParagraphText || "[None]"}
 
-Task:
+Rewrite the current paragraph.
 
-Treat the current paragraph as source material.
+Important:
 
-Do not rewrite sentence by sentence.
+The original paragraph is not a draft to edit.
 
-Do not paraphrase.
+It is only source material.
 
-Before writing, identify:
+Use the ideas, facts, examples, names, dates, and meaning from the paragraph, but do not follow its wording or structure.
 
-* the core idea
-* the important facts
-* the important examples
-* the purpose of the paragraph
+Write the paragraph as if a normal college student understood the idea and wrote it themselves.
 
-Then forget the original wording.
+The result should sound like student-authored writing, not professional writing.
 
-Write a new paragraph that communicates the same idea more naturally.
+It should not sound like:
+
+* a textbook
+* an encyclopedia
+* an academic article
+* a consultant report
+* an AI explanation
+* a polished summary
+
+Avoid broad academic openings.
+
+Do not start with phrases like:
+
+* Mythology is
+* Mythology stands
+* The origins of
+* The development of
+* The transition from
+* In prehistoric times
+* Before the rise of
+* Throughout history
+* To understand
+* Many scholars argue
+* X played a crucial role
+* X served as
+* X represents
+
+Prefer a plain, direct opening that a student would naturally choose.
+
+Examples of the right style:
+
+* People were telling stories before they had writing.
+* Early people did not have clear explanations for storms, death, or failed crops.
+* A sound in the grass could matter.
+* A failed harvest needed an explanation.
+* Some myths began with ordinary fears.
+* Stories helped people explain what they could not control.
+
+Do not copy those examples unless they fit naturally.
 
 The new paragraph should:
 
-* preserve meaning
-* preserve facts
-* preserve examples
-* fit naturally inside the essay
+* keep the same meaning
+* keep important facts
+* keep important examples
+* keep named entities
+* fit with the previous and next paragraph
+* use plain student wording
+* vary sentence length naturally
 
 The new paragraph should not:
 
 * follow the same sentence order
 * follow the same explanation order
-* follow the same opening style
-* follow the same ending style
+* use the same first sentence strategy
+* use the same ending strategy
+* sound more impressive than the original
+* use broad significance language
 
-If the revised paragraph could be described as:
+Avoid words and phrases that create textbook voice:
 
-"The original paragraph with different wording"
+* fundamental
+* framework
+* universal
+* significant
+* deeply connected
+* closely linked
+* shaped human understanding
+* cultural achievement
+* natural phenomena
+* formal systems
+* profound themes
+* demonstrates
+* reveals
+* highlights
+* illustrates
+* ultimately shows
 
-then the revision failed.
+Do not use em dashes.
 
-Return strict JSON only:
+Return JSON only:
 
 {
-  "revisedText": "Only the rewritten paragraph. No notes. No process language.",
-  "whatChanged": [
-    "Short factual change 1",
-    "Short factual change 2"
-  ],
-  "remainingIssues": [
-    "Short remaining issue, if any"
-  ]
+  "revisedText": "Only the rewritten paragraph.",
+  "whatChanged": ["Short factual change 1", "Short factual change 2"],
+  "remainingIssues": ["Short remaining issue, if any"]
 }`;
 }
 
