@@ -2,7 +2,7 @@ import { AppError, safeDetails } from "@/lib/api/errors";
 import { ContentType, StyleProfile } from "@/lib/types";
 import { getOpenAIClient } from "./client";
 import { extractJson } from "./json";
-import { OPENAI_MODEL } from "./model";
+import { OPENAI_REVISION_MODEL } from "./model";
 
 export type RevisionType = "improve";
 
@@ -15,6 +15,7 @@ export async function reviseParagraph(input: {
   nextParagraphText?: string;
   priorContextText?: string;
   detectorWindowText?: string;
+  rewriteTargets?: string[];
   subjectAnchors?: string[];
   forbiddenContextAnchors?: string[];
   evaluatorFeedback?: {
@@ -44,7 +45,7 @@ export async function reviseParagraph(input: {
 
   try {
     const response = await client.chat.completions.create({
-      model: OPENAI_MODEL,
+      model: OPENAI_REVISION_MODEL,
       response_format: { type: "json_object" },
       temperature: 0.7,
       messages: [
@@ -138,11 +139,31 @@ function buildRevisionPrompt(
   input: Parameters<typeof reviseParagraph>[0],
   contentType: ContentType
 ) {
+  const originalWordCount = input.preserveWordCount?.originalWordCount ?? countWords(input.paragraph);
+  const minimumWordCount = input.preserveWordCount?.minWordCount ?? input.preserveWordCount?.originalWordCount ?? countWords(input.paragraph);
+
   return `Rewrite one paragraph from a larger ${contentType.toLowerCase()}.
 
 Current paragraph:
 
 ${input.paragraph}
+
+Paragraph-specific detector feedback:
+
+Remaining AI-like evidence:
+${input.evaluatorFeedback?.remainingAIEvidencePresent?.length ? input.evaluatorFeedback.remainingAIEvidencePresent.map((item) => `- ${item}`).join("\n") : "- [None provided]"}
+
+Human evidence still missing:
+${input.evaluatorFeedback?.remainingHumanEvidenceMissing?.length ? input.evaluatorFeedback.remainingHumanEvidenceMissing.map((item) => `- ${item}`).join("\n") : "- [None provided]"}
+
+Validation feedback:
+${input.validationFeedback || "[None provided]"}
+
+Prior failed revision:
+${input.evaluatorFeedback?.priorRevision || "[None provided]"}
+
+Detector window:
+${input.detectorWindowText || "[None provided]"}
 
 Previous paragraph:
 
@@ -153,6 +174,79 @@ Next paragraph:
 ${input.nextParagraphText || "[None]"}
 
 Rewrite the current paragraph.
+
+Rewrite the current paragraph to directly reduce the paragraph-specific detector feedback above.
+
+Do not perform a generic rewrite.
+
+The revision must specifically reduce the listed AI-like evidence while preserving the paragraph's meaning, facts, examples, named entities, citations, and continuity.
+
+If prior failed revision is provided, do not repeat its style, structure, phrasing, or failure pattern.
+
+The revised paragraph must be at least as long as the original paragraph.
+
+Original word count:
+${originalWordCount}
+
+Minimum revised word count:
+${minimumWordCount}
+
+Do not reduce word count by summarizing.
+
+Do not make the paragraph more conversational, casual, simplified, poetic, philosophical, or polished.
+
+Do not produce:
+- synonym-swapped paraphrase
+- simplified student explainer
+- educational article prose
+- philosophical narration
+- textbook summary
+
+Hard revision rule:
+
+The revised paragraph must be materially different from the original. Do not reuse the original first sentence. Do not reuse the original final sentence. Do not copy full original sentences unless absolutely required for citations or named evidence. Preserve meaning and evidence, but rewrite the prose. A revision that is mostly the original paragraph with punctuation changes, dash cleanup, or synonym swaps has failed.
+
+Word count:
+
+The revised word count must be at least the original word count. Do not meet word count by copying original sentences. Do not pad with generic commentary.
+
+Target:
+
+A college student who researched the topic and wrote this essay themselves.
+
+The paragraph should still feel like an essay paragraph, but with fewer detector-visible patterns.
+
+Attack these patterns when present in the detector feedback:
+- broad generic openings
+- claim/explanation/significance structure
+- balanced lists
+- abstract noun stacking
+- smooth certainty
+- generic expert voice
+- textbook cadence
+- professionalized academic tone
+- repetitive explanation patterns
+
+Preserve:
+- meaning
+- facts
+- examples
+- citations
+- named entities
+- essay flow
+- paragraph role
+
+Do not add:
+- new claims
+- new examples
+- new themes
+- new philosophical framing
+- new significance statements
+
+Important:
+
+The detector feedback is the priority.
+A revision that sounds better but leaves the listed detector fingerprints intact is a failed revision.
 
 Primary product goal:
 
@@ -221,8 +315,8 @@ Return JSON only:
 function cleanupRevisedText(text: string) {
   let cleaned = text.trim();
 
-  cleaned = cleaned.replace(/—/g, ",");
-  cleaned = cleaned.replace(/–/g, "-");
+  cleaned = cleaned.replace(/\s*—\s*/g, ", ");
+  cleaned = cleaned.replace(/\s*–\s*/g, "-");
 
   const forbiddenSentencePatterns = [
     /\bExamples such as\b[^.?!]*(?:remain|remains|included|discussion)[^.?!]*[.?!]/gi,
