@@ -15,6 +15,8 @@ export async function reviseParagraph(input: {
   nextParagraphText?: string;
   priorContextText?: string;
   detectorWindowText?: string;
+  subjectAnchors?: string[];
+  forbiddenContextAnchors?: string[];
   evaluatorFeedback?: {
     remainingHumanEvidenceMissing?: string[];
     remainingAIEvidencePresent?: string[];
@@ -85,6 +87,12 @@ ${input.priorContextText?.trim() || "[No prior revised context]"}
 Detector window text:
 ${input.detectorWindowText?.trim() || input.paragraph}
 
+Current paragraph subject anchors:
+${input.subjectAnchors?.length ? input.subjectAnchors.join(", ") : "[No extracted anchors]"}
+
+Neighboring-context anchors that must not be introduced unless already present in the current paragraph:
+${input.forbiddenContextAnchors?.length ? input.forbiddenContextAnchors.join(", ") : "[None]"}
+
 Your job is not to summarize, shorten, simplify, or improve readability.
 Your job is to preserve the paragraph's full meaning while transforming paragraph architecture to remove common AI writing tells.
 
@@ -101,6 +109,10 @@ Content preservation is higher priority than detector-risk reduction. Transform 
 Hard requirements:
 - Preserve every major idea from the original paragraph.
 - Preserve every example, fact, claim, and explanation.
+- Preserve the current paragraph's subject. Neighboring context is for continuity only.
+- Do not borrow names, examples, facts, or topic material from the previous or next paragraph unless they already appear in the current paragraph.
+- Preserve the major subject anchors from the current paragraph.
+- Do not introduce neighboring-context anchors listed above.
 - Keep revised word count between 95% and 130% of the original.
 - Do not use em dashes.
 - Do not use hyphenated word compounds.

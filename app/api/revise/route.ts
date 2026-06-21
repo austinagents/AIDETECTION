@@ -19,6 +19,8 @@ export async function POST(request: Request) {
     const nextParagraphText = String(body.nextParagraphText || "");
     const priorContextText = String(body.priorContextText || "");
     const detectorWindowText = [previousParagraphText, paragraph, nextParagraphText].filter((text) => text.trim()).join("\n\n");
+    const subjectAnchors = extractSubjectAnchors(paragraph);
+    const forbiddenContextAnchors = extractForbiddenContextAnchors(paragraph, previousParagraphText, nextParagraphText);
 
     if (!paragraph.trim()) throw new AppError("VALIDATION_ERROR", "Choose a paragraph to revise.", 400);
     if (typeof beforeRiskDisplay !== "number" || !Number.isFinite(beforeRiskDisplay)) {
@@ -54,12 +56,24 @@ export async function POST(request: Request) {
       previousParagraphText,
       nextParagraphText,
       priorContextText,
-      detectorWindowText
+      detectorWindowText,
+      subjectAnchors,
+      forbiddenContextAnchors
     });
     let revisedWordCount = countWords(revision.revisedText);
-    let validationFailures = getRevisionValidationFailures(revision.revisedText, revisedWordCount, minWordCount, maxWordCount, previousParagraphText);
+    let validationFailures = getRevisionValidationFailures(
+      revision.revisedText,
+      revisedWordCount,
+      minWordCount,
+      maxWordCount,
+      previousParagraphText,
+      subjectAnchors,
+      forbiddenContextAnchors
+    );
     revisionDebug = {
       ...revisionDebug,
+      subjectAnchors,
+      forbiddenContextAnchors,
       firstRevisionWordCount: revisedWordCount,
       firstRevisionValidationErrors: validationFailures,
       firstRevisionBannedPatternMatches: getBannedRevisionMatches(revision.revisedText)
@@ -76,6 +90,8 @@ export async function POST(request: Request) {
         nextParagraphText,
         priorContextText,
         detectorWindowText,
+        subjectAnchors,
+        forbiddenContextAnchors,
         preserveWordCount: {
           originalWordCount,
           previousRevisedWordCount: revisedWordCount,
@@ -83,10 +99,18 @@ export async function POST(request: Request) {
           maxWordCount
         },
         validationFeedback:
-          `Repair the revision. Validation failed because it ${validationFailures.join(", ")}. Rewrite again while preserving all meaning, staying within the word count range, and avoiding banned punctuation.`
+          `Repair the revision. Validation failed because it ${validationFailures.join(", ")}. Rewrite again while preserving all meaning, staying within the word count range, avoiding banned punctuation, preserving the current paragraph subject anchors, and using surrounding paragraphs only for flow.`
       });
       revisedWordCount = countWords(revision.revisedText);
-      validationFailures = getRevisionValidationFailures(revision.revisedText, revisedWordCount, minWordCount, maxWordCount, previousParagraphText);
+      validationFailures = getRevisionValidationFailures(
+        revision.revisedText,
+        revisedWordCount,
+        minWordCount,
+        maxWordCount,
+        previousParagraphText,
+        subjectAnchors,
+        forbiddenContextAnchors
+      );
       revisionDebug = {
         ...revisionDebug,
         repairRevisionWordCount: revisedWordCount,
@@ -108,7 +132,15 @@ export async function POST(request: Request) {
         revisedText: normalizeRevisionText(revision.revisedText, minWordCount, maxWordCount)
       };
       revisedWordCount = countWords(revision.revisedText);
-      validationFailures = getRevisionValidationFailures(revision.revisedText, revisedWordCount, minWordCount, maxWordCount, previousParagraphText);
+      validationFailures = getRevisionValidationFailures(
+        revision.revisedText,
+        revisedWordCount,
+        minWordCount,
+        maxWordCount,
+        previousParagraphText,
+        subjectAnchors,
+        forbiddenContextAnchors
+      );
       revisionDebug = {
         ...revisionDebug,
         normalizedRevisionWordCount: revisedWordCount,
@@ -120,9 +152,10 @@ export async function POST(request: Request) {
     }
 
     logRevisionDebug("analysis_started", revisionDebug);
+    const revisedDetectorWindowText = [previousParagraphText, revision.revisedText, nextParagraphText].filter((text) => text.trim()).join("\n\n");
     const revisedAnalysis = await analyzeWriting({
-      title: "Revised paragraph",
-      content: revision.revisedText,
+      title: "Revised detector window",
+      content: revisedDetectorWindowText || revision.revisedText,
       contentType,
       styleProfile: profile?.profile ?? null
     });
@@ -220,7 +253,15 @@ function getBannedRevisionMatches(text: string) {
   });
 }
 
-function getRevisionValidationFailures(text: string, wordCount: number, minWordCount: number, maxWordCount: number, previousParagraphText = "") {
+function getRevisionValidationFailures(
+  text: string,
+  wordCount: number,
+  minWordCount: number,
+  maxWordCount: number,
+  previousParagraphText = "",
+  subjectAnchors: string[] = [],
+  forbiddenContextAnchors: string[] = []
+) {
   const failures: string[] = [];
   if (wordCount < minWordCount) failures.push("is too short");
   if (wordCount > maxWordCount) failures.push("is too long");
@@ -229,6 +270,10 @@ function getRevisionValidationFailures(text: string, wordCount: number, minWordC
   }
   if (hasRepeatedOpening(text, previousParagraphText)) failures.push("repeats the previous paragraph opening rhythm");
   if (hasRepeatedEnding(text, previousParagraphText)) failures.push("repeats the previous paragraph ending rhythm");
+  const missingAnchors = getMissingSubjectAnchors(text, subjectAnchors);
+  if (missingAnchors.length) failures.push(`drops current paragraph subject anchors: ${missingAnchors.join(", ")}`);
+  const contextBleed = getContextBleedAnchors(text, forbiddenContextAnchors);
+  if (contextBleed.length) failures.push(`borrows neighboring paragraph content: ${contextBleed.join(", ")}`);
   return failures;
 }
 
@@ -256,6 +301,151 @@ function lastSentence(text: string) {
 function phraseSignature(sentence: string) {
   return sentence.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean).slice(0, 3).join(" ");
 }
+
+function extractSubjectAnchors(text: string) {
+  const anchors = [
+    ...extractNamedEntities(text),
+    ...extractRareTopicWords(text)
+  ];
+  return uniqueAnchors(anchors).slice(0, 14);
+}
+
+function extractForbiddenContextAnchors(currentText: string, previousParagraphText: string, nextParagraphText: string) {
+  const currentAnchors = new Set(extractSubjectAnchors(currentText).map(normalizeAnchor));
+  const contextAnchors = [
+    ...extractNamedEntities(previousParagraphText),
+    ...extractNamedEntities(nextParagraphText)
+  ];
+  return uniqueAnchors(contextAnchors)
+    .filter((anchor) => !currentAnchors.has(normalizeAnchor(anchor)))
+    .slice(0, 18);
+}
+
+function getMissingSubjectAnchors(text: string, subjectAnchors: string[]) {
+  const normalizedText = normalizeComparableText(text);
+  const requiredAnchors = subjectAnchors.filter((anchor) => isRequiredSubjectAnchor(anchor, subjectAnchors.length));
+  return requiredAnchors.filter((anchor) => !normalizedText.includes(normalizeComparableText(anchor))).slice(0, 5);
+}
+
+function getContextBleedAnchors(text: string, forbiddenContextAnchors: string[]) {
+  const normalizedText = normalizeComparableText(text);
+  return forbiddenContextAnchors
+    .filter((anchor) => isSpecificContextAnchor(anchor))
+    .filter((anchor) => normalizedText.includes(normalizeComparableText(anchor)))
+    .slice(0, 6);
+}
+
+function extractNamedEntities(text: string) {
+  const matches = text.match(/\b(?:[A-Z][a-zA-Z'’]+(?:\s+(?:of|the|and|in|[A-Z][a-zA-Z'’]+)){0,3})\b/g) ?? [];
+  return matches
+    .map((match) => match.trim())
+    .filter((match) => !sentenceStarterWords.has(match.toLowerCase()))
+    .filter((match) => match.length > 2);
+}
+
+function extractRareTopicWords(text: string) {
+  const words = text.match(/\b[A-Za-z][A-Za-z'’]{5,}\b/g) ?? [];
+  return words
+    .map((word) => word.replace(/[’']/g, "").toLowerCase())
+    .filter((word) => !commonWords.has(word))
+    .filter((word, index, list) => list.indexOf(word) === index)
+    .slice(0, 10);
+}
+
+function uniqueAnchors(anchors: string[]) {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const anchor of anchors) {
+    const normalized = normalizeAnchor(anchor);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    unique.push(anchor);
+  }
+  return unique;
+}
+
+function isRequiredSubjectAnchor(anchor: string, totalAnchors: number) {
+  return /[A-Z]/.test(anchor[0] ?? "") || anchor.includes(" ") || totalAnchors <= 5;
+}
+
+function isSpecificContextAnchor(anchor: string) {
+  const normalized = normalizeAnchor(anchor);
+  return anchor.includes(" ") || /^[A-Z]/.test(anchor) || normalized.length >= 8;
+}
+
+function normalizeAnchor(anchor: string) {
+  return normalizeComparableText(anchor);
+}
+
+function normalizeComparableText(text: string) {
+  return text.toLowerCase().replace(/[’']/g, "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+const sentenceStarterWords = new Set([
+  "a",
+  "an",
+  "as",
+  "at",
+  "because",
+  "before",
+  "but",
+  "during",
+  "for",
+  "from",
+  "if",
+  "in",
+  "it",
+  "many",
+  "one",
+  "rather",
+  "similar",
+  "some",
+  "such",
+  "the",
+  "these",
+  "this",
+  "through",
+  "when",
+  "while",
+  "without"
+]);
+
+const commonWords = new Set([
+  "about",
+  "across",
+  "around",
+  "because",
+  "before",
+  "between",
+  "common",
+  "could",
+  "different",
+  "during",
+  "example",
+  "explain",
+  "explained",
+  "explaining",
+  "formed",
+  "helped",
+  "however",
+  "important",
+  "including",
+  "itself",
+  "larger",
+  "meaning",
+  "modern",
+  "natural",
+  "people",
+  "rather",
+  "shared",
+  "similar",
+  "stories",
+  "through",
+  "understand",
+  "within",
+  "without",
+  "world"
+]);
 
 function logRevisionDebug(event: string, details: Record<string, unknown> | null) {
   console.info("[revision-debug]", JSON.stringify({ event, ...details }));
