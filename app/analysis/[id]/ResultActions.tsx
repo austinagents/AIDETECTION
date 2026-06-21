@@ -56,6 +56,9 @@ export function RecommendedImprovements({
   const readiness: SubmissionReadinessState =
     remaining === 0 ? "Ready" : completed.size > 0 ? "Mostly Ready" : openRisk >= 61 ? "High Risk" : "Needs Work";
   const canGenerateFinalEssay = recommended.length > 0 && completed.size === recommended.length;
+  const workingParagraphs = useMemo(() => {
+    return paragraphs.map((paragraph) => completedImprovements[paragraph.index]?.latestRevisedText ?? paragraph.text);
+  }, [completedImprovements, paragraphs]);
 
   function markImproved(improvement: CompletedImprovement) {
     setCompleted((current) => {
@@ -105,15 +108,23 @@ export function RecommendedImprovements({
         <h2 className="text-xl font-semibold">Recommended Improvements</h2>
         <p className="mt-2 text-sm text-slate-400">What should I fix?</p>
         <div className="mt-4 space-y-4">
-          {recommended.map((paragraph, index) => (
-            <ImprovementCard
-              key={paragraph.index}
-              analysisId={analysisId}
-              paragraph={paragraph}
-              label={`Improvement Opportunity ${index + 1}`}
-              onImproved={markImproved}
-            />
-          ))}
+          {recommended.map((paragraph, index) => {
+            const previousParagraphText = workingParagraphs[index - 1] ?? "";
+            const nextParagraphText = workingParagraphs[index + 1] ?? "";
+            const priorContextText = workingParagraphs.slice(Math.max(0, index - 3), index).join("\n\n");
+            return (
+              <ImprovementCard
+                key={paragraph.index}
+                analysisId={analysisId}
+                paragraph={paragraph}
+                label={`Improvement Opportunity ${index + 1}`}
+                previousParagraphText={previousParagraphText}
+                nextParagraphText={nextParagraphText}
+                priorContextText={priorContextText}
+                onImproved={markImproved}
+              />
+            );
+          })}
           {!recommended.length && (
             <Card className="p-6">
               <p className="text-sm text-slate-300">No major improvement opportunities were detected.</p>
@@ -143,11 +154,17 @@ function ImprovementCard({
   analysisId,
   paragraph,
   label,
+  previousParagraphText,
+  nextParagraphText,
+  priorContextText,
   onImproved
 }: {
   analysisId: string;
   paragraph: ParagraphAnalysis;
   label: string;
+  previousParagraphText: string;
+  nextParagraphText: string;
+  priorContextText: string;
   onImproved: (improvement: CompletedImprovement) => void;
 }) {
   const [displayedText, setDisplayedText] = useState(paragraph.text);
@@ -169,6 +186,10 @@ function ImprovementCard({
           analysisId,
           paragraphIndex: paragraph.index,
           paragraph: displayedText,
+          currentParagraphText: displayedText,
+          previousParagraphText,
+          nextParagraphText,
+          priorContextText,
           revisionType: "improve",
           beforeRiskDisplay
         })

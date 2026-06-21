@@ -11,6 +11,10 @@ export async function reviseParagraph(input: {
   revisionType: RevisionType;
   contentType?: ContentType;
   styleProfile?: StyleProfile | null;
+  previousParagraphText?: string;
+  nextParagraphText?: string;
+  priorContextText?: string;
+  detectorWindowText?: string;
   evaluatorFeedback?: {
     remainingHumanEvidenceMissing?: string[];
     remainingAIEvidencePresent?: string[];
@@ -48,7 +52,9 @@ export async function reviseParagraph(input: {
         },
         {
           role: "user",
-          content: `You are rewriting one essay paragraph to reduce AI detector risk.
+          content: `You are revising one paragraph inside an essay to reduce AI detector risk.
+
+Commercial AI detectors often evaluate sentence-level writing in surrounding context, not only isolated paragraphs. Revise the current paragraph so it reduces AI detection risk within this local detector window.
 
 Request: ${input.revisionType}
 Content type: ${contentType}
@@ -64,7 +70,20 @@ Word count requirement: ${
                 } words. Preserve semantic coverage and stay within the target length range.`
               : "Keep the revised paragraph within 95% to 130% of the original paragraph word count."
           }
-Paragraph: ${input.paragraph}
+Previous paragraph:
+${input.previousParagraphText?.trim() || "[No previous paragraph]"}
+
+Current paragraph:
+${input.paragraph}
+
+Next paragraph:
+${input.nextParagraphText?.trim() || "[No next paragraph]"}
+
+Prior revised context:
+${input.priorContextText?.trim() || "[No prior revised context]"}
+
+Detector window text:
+${input.detectorWindowText?.trim() || input.paragraph}
 
 Your job is not to summarize, shorten, simplify, or improve readability.
 Your job is to preserve the paragraph's full meaning while transforming paragraph architecture to remove common AI writing tells.
@@ -92,6 +111,13 @@ Hard requirements:
 - Rewrite the paragraph as a competent human essay paragraph.
 - Do not automatically preserve sentence count, sentence order, explanation order, paragraph opening style, or paragraph ending style.
 - Change paragraph movement when possible while preserving meaning.
+- Do not restart the topic if the previous context already introduced it.
+- Do not repeat the same opening style used in surrounding paragraphs.
+- Do not repeat the same ending style used in surrounding paragraphs.
+- Do not use the same transition rhythm as surrounding paragraphs.
+- Connect naturally to the previous paragraph and prepare for the next one.
+- Vary sentence length and structure inside the detector window.
+- Reduce predictability and repeated cadence across the detector window.
 
 Remove or reduce these AI tells when present:
 - overly formal tone
@@ -108,6 +134,7 @@ Remove or reduce these AI tells when present:
 - over-explanation
 - robotic completeness
 - low variation in sentence rhythm
+- repeated cadence across nearby paragraphs
 - vague attribution
 - promotional or inflated wording
 - AI-style filler phrases

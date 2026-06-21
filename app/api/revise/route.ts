@@ -10,11 +10,15 @@ export async function POST(request: Request) {
   let revisionDebug: Record<string, unknown> | null = null;
   try {
     const body = await request.json();
-    const paragraph = String(body.paragraph || "");
+    const paragraph = String(body.currentParagraphText || body.paragraph || "");
     const revisionType: RevisionType = "improve";
     const analysisId = String(body.analysisId || "");
     const paragraphIndex = Number(body.paragraphIndex ?? 0);
     const beforeRiskDisplay = body.beforeRiskDisplay;
+    const previousParagraphText = String(body.previousParagraphText || "");
+    const nextParagraphText = String(body.nextParagraphText || "");
+    const priorContextText = String(body.priorContextText || "");
+    const detectorWindowText = [previousParagraphText, paragraph, nextParagraphText].filter((text) => text.trim()).join("\n\n");
 
     if (!paragraph.trim()) throw new AppError("VALIDATION_ERROR", "Choose a paragraph to revise.", 400);
     if (typeof beforeRiskDisplay !== "number" || !Number.isFinite(beforeRiskDisplay)) {
@@ -42,9 +46,18 @@ export async function POST(request: Request) {
       maxWordCount,
       analysisSkipped: false
     };
-    let revision = await reviseParagraph({ paragraph, revisionType, contentType, styleProfile: profile?.profile ?? null });
+    let revision = await reviseParagraph({
+      paragraph,
+      revisionType,
+      contentType,
+      styleProfile: profile?.profile ?? null,
+      previousParagraphText,
+      nextParagraphText,
+      priorContextText,
+      detectorWindowText
+    });
     let revisedWordCount = countWords(revision.revisedText);
-    let validationFailures = getRevisionValidationFailures(revision.revisedText, revisedWordCount, minWordCount, maxWordCount);
+    let validationFailures = getRevisionValidationFailures(revision.revisedText, revisedWordCount, minWordCount, maxWordCount, previousParagraphText);
     revisionDebug = {
       ...revisionDebug,
       firstRevisionWordCount: revisedWordCount,
@@ -59,6 +72,10 @@ export async function POST(request: Request) {
         revisionType,
         contentType,
         styleProfile: profile?.profile ?? null,
+        previousParagraphText,
+        nextParagraphText,
+        priorContextText,
+        detectorWindowText,
         preserveWordCount: {
           originalWordCount,
           previousRevisedWordCount: revisedWordCount,
@@ -69,7 +86,7 @@ export async function POST(request: Request) {
           `Repair the revision. Validation failed because it ${validationFailures.join(", ")}. Rewrite again while preserving all meaning, staying within the word count range, and avoiding banned punctuation.`
       });
       revisedWordCount = countWords(revision.revisedText);
-      validationFailures = getRevisionValidationFailures(revision.revisedText, revisedWordCount, minWordCount, maxWordCount);
+      validationFailures = getRevisionValidationFailures(revision.revisedText, revisedWordCount, minWordCount, maxWordCount, previousParagraphText);
       revisionDebug = {
         ...revisionDebug,
         repairRevisionWordCount: revisedWordCount,
@@ -91,7 +108,7 @@ export async function POST(request: Request) {
         revisedText: normalizeRevisionText(revision.revisedText, minWordCount, maxWordCount)
       };
       revisedWordCount = countWords(revision.revisedText);
-      validationFailures = getRevisionValidationFailures(revision.revisedText, revisedWordCount, minWordCount, maxWordCount);
+      validationFailures = getRevisionValidationFailures(revision.revisedText, revisedWordCount, minWordCount, maxWordCount, previousParagraphText);
       revisionDebug = {
         ...revisionDebug,
         normalizedRevisionWordCount: revisedWordCount,
@@ -203,14 +220,41 @@ function getBannedRevisionMatches(text: string) {
   });
 }
 
-function getRevisionValidationFailures(text: string, wordCount: number, minWordCount: number, maxWordCount: number) {
+function getRevisionValidationFailures(text: string, wordCount: number, minWordCount: number, maxWordCount: number, previousParagraphText = "") {
   const failures: string[] = [];
   if (wordCount < minWordCount) failures.push("is too short");
   if (wordCount > maxWordCount) failures.push("is too long");
   for (const violation of getBannedRevisionViolations(text)) {
     failures.push(`contains ${violation.name}`);
   }
+  if (hasRepeatedOpening(text, previousParagraphText)) failures.push("repeats the previous paragraph opening rhythm");
+  if (hasRepeatedEnding(text, previousParagraphText)) failures.push("repeats the previous paragraph ending rhythm");
   return failures;
+}
+
+function hasRepeatedOpening(text: string, previousParagraphText: string) {
+  const current = phraseSignature(firstSentence(text));
+  const previous = phraseSignature(firstSentence(previousParagraphText));
+  return Boolean(current && previous && current === previous);
+}
+
+function hasRepeatedEnding(text: string, previousParagraphText: string) {
+  const current = phraseSignature(lastSentence(text));
+  const previous = phraseSignature(lastSentence(previousParagraphText));
+  return Boolean(current && previous && current === previous);
+}
+
+function firstSentence(text: string) {
+  return text.split(/[.!?]+/).map((item) => item.trim()).filter(Boolean)[0] ?? "";
+}
+
+function lastSentence(text: string) {
+  const sentences = text.split(/[.!?]+/).map((item) => item.trim()).filter(Boolean);
+  return sentences[sentences.length - 1] ?? "";
+}
+
+function phraseSignature(sentence: string) {
+  return sentence.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean).slice(0, 3).join(" ");
 }
 
 function logRevisionDebug(event: string, details: Record<string, unknown> | null) {
