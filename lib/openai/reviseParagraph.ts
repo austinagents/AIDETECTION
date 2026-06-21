@@ -52,9 +52,11 @@ export async function reviseParagraph(input: {
           role: "system",
           content: `You are a professional essay editor.
 
-Your job is editorial reconstruction, not paraphrasing.
+Your job is not to paraphrase.
 
-Rewrite one paragraph so it sounds like a strong college student wrote it naturally inside an essay.
+Treat the original paragraph as source material, not as prose to preserve.
+
+Extract its meaning, facts, examples, and role, then write a new paragraph from those notes in the voice of a strong college student.
 
 Return strict JSON only.`
         },
@@ -112,20 +114,32 @@ function buildRevisionPrompt(
       ? `The original paragraph is about ${originalWordCount} words. Preserve the amount of information, but do not force exact length. The revised paragraph may be shorter or longer if that creates a stronger paragraph.`
       : "Preserve the amount of information, but do not force exact length.";
 
-  return `Revise one paragraph inside a ${contentType.toLowerCase()}.
+  return `You are given one paragraph inside a ${contentType.toLowerCase()}.
 
-This is NOT a paraphrase task.
+Do not revise it sentence by sentence.
 
-This is an editorial reconstruction task.
+Do not paraphrase it.
 
-Before writing, silently determine:
-1. What the paragraph is about.
-2. Why the paragraph exists.
-3. What job it performs in the document.
-4. How it follows the previous paragraph.
-5. How it leads toward the next paragraph.
+Use the current paragraph only as source material.
 
-Then rebuild the paragraph from scratch.
+First, silently convert the current paragraph into unordered source notes.
+
+Extract:
+1. Subject.
+2. Facts.
+3. Examples.
+4. Named entities.
+5. Dates.
+6. Paragraph role.
+7. Relationship to the previous paragraph.
+8. Relationship to the next paragraph.
+
+Then write a new paragraph only from those notes.
+
+The original paragraph is not a draft.
+The original paragraph is source material.
+Do not write from the original paragraph wording.
+Do not preserve the original paragraph path.
 
 TARGET WRITER:
 A strong college student writing their own essay.
@@ -174,7 +188,9 @@ Actively change:
 - transition style
 - explanation order
 
-If the revised paragraph follows the same sentence order, same information order, and same paragraph movement as the original, it failed.
+The new paragraph must preserve meaning, facts, examples, named entities, and essay continuity, but it must take a different route to explain the idea.
+
+If the new paragraph follows the same opening type, information order, paragraph movement, explanation path, or ending type as the original, it failed.
 
 A successful revision should NOT be explainable as:
 "the original paragraph with different wording."
@@ -209,6 +225,27 @@ The revised paragraph must:
 
 Do not borrow facts, names, examples, or subject matter from neighboring paragraphs unless they already appear in the current paragraph.
 
+ANTI-PARAPHRASE RULE:
+The revised paragraph must not:
+- begin with the same subject move
+- follow the same sentence order
+- follow the same information order
+- use the same explanation path
+- end with the same type of conclusion
+
+If the original begins with an abstract claim, the revision must not begin with an abstract claim.
+
+If the original moves claim to context to explanation to significance, choose a different movement.
+
+Allowed movements:
+- concrete detail to interpretation
+- problem to response
+- example to broader point
+- contrast to consequence
+- historical detail to implication
+- observation to explanation
+- event to reaction to meaning
+
 INFORMATION DENSITY:
 Do not rewrite only to say the same thing differently.
 
@@ -222,10 +259,24 @@ Improve at least one of:
 - naturalness
 
 OPENINGS:
-Prefer openings based on:
+The first sentence must use a different opening strategy from the original.
+
+If the original opens with "Mythology is," do not open with:
+- Mythology stands
+- Mythology has
+- Mythology represents
+- Mythology served
+
+If the original opens with "To understand," do not open with:
+- Tracing
+- Examining
+- Understanding
+
+Start from:
 - concrete observation
 - specific example
 - practical consequence
+- human problem
 - direct explanation
 - continuation from the previous idea
 - named event or object when relevant
