@@ -51,7 +51,7 @@ export async function reviseParagraph(input: {
         {
           role: "system",
           content:
-            "You rewrite college essay paragraphs by diagnosing the AI-like writing pattern, then rebuilding the paragraph around a different organizing center. Do not paraphrase. Do not simplify into casual speech. Preserve the meaning and evidence, but change the route the paragraph takes. The result should sound like a capable college student who researched the topic and wrote the essay themselves. Return strict JSON only."
+            "You rewrite college essay paragraphs by diagnosing the AI-like writing pattern, then rebuilding the paragraph around a different organizing center. Do not paraphrase. Do not simplify into casual speech. Preserve the meaning and evidence, but change the route the paragraph takes. The result should sound like a capable college student who researched the topic and wrote the essay themselves. Do not write as an educator, explainer, textbook author, documentary narrator, encyclopedia entry, or informational article. Do not teach the topic to the reader. Write as a college student developing an argument inside an essay. The paragraph should sound like the student is making a point, not explaining a subject. Return strict JSON only."
         },
         {
           role: "user",
@@ -153,6 +153,32 @@ Maintain college-level specificity, maturity, and subject knowledge.
 Change the route the paragraph takes.
 
 The new paragraph must sound like a college student essay, not a textbook, not professional editor prose, and not casual speech.
+
+Do not write as an educator, explainer, textbook author, documentary narrator, encyclopedia entry, or informational article.
+
+Do not teach the topic to the reader.
+
+Write as a college student developing an argument inside an essay.
+
+The paragraph should sound like the student is making a point, not explaining a subject.
+
+Avoid phrases like:
+
+* helped people make sense of
+* gave people a way to understand
+* showed how
+* this way of thinking
+* these stories weren't just
+* it was easier to
+* it was simpler and more comforting
+
+Prefer argumentative student movement:
+
+* specific situation to claim
+* example to interpretation
+* contrast to consequence
+* problem to explanation
+* concrete detail to essay point
 
 The output fails if it sounds like:
 
