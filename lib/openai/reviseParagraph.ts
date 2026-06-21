@@ -50,23 +50,8 @@ export async function reviseParagraph(input: {
       messages: [
         {
           role: "system",
-          content: `You are rewriting one paragraph for a college student essay.
-
-Do not act like a professional editor.
-
-Do not polish the paragraph into textbook language.
-
-Do not paraphrase the original paragraph.
-
-Treat the original paragraph as notes about what the student wants to say.
-
-Write a new paragraph in the voice of a normal college student who understands the topic and is explaining it in their own words.
-
-The paragraph should be clear and appropriate for college work, but it should not sound professional, institutional, or overly polished.
-
-Do not use em dashes.
-
-Return strict JSON only.`
+          content:
+            "You rewrite college essay paragraphs by diagnosing the AI-like writing pattern, then rebuilding the paragraph around a different organizing center. Do not paraphrase. Do not simplify into casual speech. Preserve the meaning and evidence, but change the route the paragraph takes. The result should sound like a capable college student who researched the topic and wrote the essay themselves. Return strict JSON only."
         },
         {
           role: "user",
@@ -134,15 +119,48 @@ Rewrite the current paragraph.
 
 Important:
 
-The original paragraph is not a draft to edit.
+Treat the current paragraph as source material.
 
-It is only source material.
+First, silently diagnose why it sounds AI-like.
 
-Use the ideas, facts, examples, names, dates, and meaning from the paragraph, but do not follow its wording or structure.
+Look for:
 
-Write the paragraph as if a normal college student understood the idea and wrote it themselves.
+* broad textbook opening
+* professionalized tone
+* abstract noun stacking
+* claim to explanation to significance structure
+* smooth certainty
+* balanced list structure
+* generic expert voice
+* predictable explanation order
 
-The result should sound like student-authored writing, not professional writing.
+Then identify its current organizing center.
+
+Then choose a different organizing center that preserves the same meaning, evidence, examples, named entities, citations, and essay continuity.
+
+Write a new paragraph from that new organizing center.
+
+The new paragraph must not preserve the original opening type, explanation order, paragraph movement, or ending type.
+
+Do not paraphrase sentence by sentence.
+
+Do not organize the new paragraph around the same center of gravity.
+
+Do not simplify the paragraph.
+
+Maintain college-level specificity, maturity, and subject knowledge.
+
+Change the route the paragraph takes.
+
+The new paragraph must sound like a college student essay, not a textbook, not professional editor prose, and not casual speech.
+
+The output fails if it sounds like:
+
+"same paragraph, different wording"
+
+The output also fails if it sounds like:
+
+"same paragraph, simpler wording"
 
 It should not sound like:
 
@@ -191,7 +209,7 @@ The new paragraph should:
 * keep important examples
 * keep named entities
 * fit with the previous and next paragraph
-* use plain student wording
+* use college-student execution
 * vary sentence length naturally
 
 The new paragraph should not:
