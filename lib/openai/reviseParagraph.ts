@@ -50,13 +50,15 @@ export async function reviseParagraph(input: {
         {
           role: "system",
           content:
-            "You are an AI-detector risk reducer. Revise paragraphs only to reduce visible AI-writing fingerprints while preserving meaning, factual boundaries, and user intent. This is not a grammar, quality, creativity, originality, polish, voice, or readability task. Do not make evasion-related claims. Return strict JSON only."
+            "You revise essay paragraphs for reliable, faithful improvement. Preserve meaning, factual boundaries, and user intent while reducing repetitive, overly polished, textbook-like writing patterns. This is not a grammar, creativity, originality, polish, voice, or readability task. Do not make evasion-related claims. Return strict JSON only."
         },
         {
           role: "user",
-          content: `You are revising one paragraph inside an essay to reduce AI detector risk.
+          content: `You are revising one paragraph inside an essay.
 
-Commercial AI detectors often evaluate sentence-level writing in surrounding context, not only isolated paragraphs. Revise the current paragraph so it reduces AI detection risk within this local detector window.
+Use the surrounding context to improve continuity and reduce repetition, but do not use surrounding context as source material. The revised paragraph must remain about the current paragraph's subject.
+
+Internal quality target: <= 3. This is only for internal optimization. Do not mention the score, target, retries, or optimization process.
 
 Request: ${input.revisionType}
 Content type: ${contentType}
@@ -94,13 +96,13 @@ Neighboring-context anchors that must not be introduced unless already present i
 ${input.forbiddenContextAnchors?.length ? input.forbiddenContextAnchors.join(", ") : "[None]"}
 
 Your job is not to summarize, shorten, simplify, or improve readability.
-Your job is to preserve the paragraph's full meaning while transforming paragraph architecture to remove common AI writing tells.
+Your job is to preserve the paragraph's full meaning while transforming paragraph architecture to reduce repetitive, overly polished, textbook-like writing patterns.
 
 Core revision priority order:
 1. Preserve all original meaning.
 2. Preserve all claims, examples, facts, and supporting details.
 3. Preserve length within 95% to 130% of the original paragraph word count.
-4. Transform paragraph architecture to remove AI detector fingerprints.
+4. Transform paragraph architecture to reduce repetitive and generic writing patterns.
 5. Keep essay-appropriate tone.
 6. Avoid banned punctuation and style patterns.
 
@@ -113,10 +115,11 @@ Hard requirements:
 - Do not borrow names, examples, facts, or topic material from the previous or next paragraph unless they already appear in the current paragraph.
 - Preserve the major subject anchors from the current paragraph.
 - Do not introduce neighboring-context anchors listed above.
+- Preserve dates, titles, citations, examples, and the paragraph's argument role.
 - Keep revised word count between 95% and 130% of the original.
 - Do not use em dashes.
 - Do not use hyphenated word compounds.
-- Do not use generic AI essay phrasing.
+- Do not use generic educational essay phrasing.
 - Do not write like a textbook, consultant report, research summary, or institutional overview.
 - Keep the tone appropriate for an essay.
 - Do not make the writing casual, childish, poetic, or dramatic.
@@ -129,9 +132,9 @@ Hard requirements:
 - Do not use the same transition rhythm as surrounding paragraphs.
 - Connect naturally to the previous paragraph and prepare for the next one.
 - Vary sentence length and structure inside the detector window.
-- Reduce predictability and repeated cadence across the detector window.
+- Reduce predictability and repeated cadence across the paragraph context window.
 
-Remove or reduce these AI tells when present:
+Reduce these issues when present:
 - overly formal tone
 - repetitive sentence patterns
 - textbook cadence
@@ -149,10 +152,10 @@ Remove or reduce these AI tells when present:
 - repeated cadence across nearby paragraphs
 - vague attribution
 - promotional or inflated wording
-- AI-style filler phrases
+- filler phrases
 
 Architecture rules:
-- Do not treat wording as the primary fingerprint. Paragraph structure is the primary fingerprint.
+- Do not treat wording as the primary issue. Paragraph structure is often the primary issue.
 - Do not preserve the original architecture just because it is coherent.
 - Do not automatically preserve a broad opening, an explanatory middle, or a significance ending.
 - If the original uses a broad claim first, consider starting with a concrete detail, example, consequence, problem, or specific observation.
@@ -176,6 +179,7 @@ Allowed replacement movements:
 Document-level variation:
 - Do not repeatedly choose the same paragraph architecture.
 - Reduce document-wide repetition by making this paragraph move differently from a standard textbook overview.
+- Use prior revised context as document memory. Avoid copying its opening style, ending style, transition style, sentence rhythm, or paragraph movement.
 
 Openings to avoid:
 - "X is one of..."
@@ -198,8 +202,9 @@ Banned output patterns:
 - Do not write phrases like AI-generated, AI-native, human-written, detector-friendly, textbook-like, well-known, up-to-date, context-aware, or student-sounding. Use normal wording instead.
 
 If validation feedback is provided, repair exactly those failures while preserving every original idea.
+If the prior attempt drifted into neighboring content, rewrite only the current paragraph. Keep neighboring paragraphs as flow context only.
 
-Return concise notes. What Changed should describe detector-fingerprint removal, not writing-quality improvement. Remaining Issues should mention only unresolved AI tells.
+Return concise notes. What Changed should describe actual structural or phrasing changes. Remaining Issues should mention only unresolved repetition, generic framing, excessive certainty, balanced construction, or subject-preservation concerns.
 
 Return:
 {

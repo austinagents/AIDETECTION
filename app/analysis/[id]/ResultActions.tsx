@@ -21,6 +21,7 @@ type RevisionState = {
   changes: string[];
   remainingIssues: string[];
   impact: RevisionImpact;
+  status?: string;
 };
 
 type CompletedImprovement = {
@@ -204,12 +205,13 @@ function ImprovementCard({
         explanation: data.explanation,
         changes: Array.isArray(data.changes) ? data.changes.slice(0, 5) : [],
         remainingIssues: Array.isArray(data.remainingIssues) ? data.remainingIssues.slice(0, 5) : [],
-        impact: data.impact
+        impact: data.impact,
+        status: typeof data.status === "string" ? data.status : "Ready"
       });
       if (typeof data.impact?.afterScore === "number") {
         setCurrentScore(data.impact.afterScore);
       }
-      if (data.impact?.improved) {
+      if (typeof data.revisedText === "string" && data.revisedText.trim()) {
         onImproved({
           paragraphIndex: paragraph.index,
           originalText: paragraph.text,
@@ -269,6 +271,11 @@ function ImprovementCard({
 
       {revision && (
         <div className="mt-5 space-y-4 rounded-md border border-ink-700 bg-ink-950 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-medium text-slate-300">Revision Status</p>
+            <span className="rounded-md border border-risk-low/30 bg-risk-low/10 px-2 py-1 text-xs font-semibold text-risk-low">{revision.status ?? "Ready"}</span>
+          </div>
+
           <div>
             <p className="text-sm font-medium text-slate-300">AI Detection</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
