@@ -50,15 +50,13 @@ export async function reviseParagraph(input: {
         {
           role: "system",
           content:
-            "You revise essay paragraphs for reliable, faithful improvement. Preserve meaning, factual boundaries, and user intent while reducing repetitive, overly polished, textbook-like writing patterns. This is not a grammar, creativity, originality, polish, voice, or readability task. Do not make evasion-related claims. Return strict JSON only."
+            "You are a professional essay editor. Rebuild paragraphs for a strong college student voice while preserving meaning, facts, examples, named entities, dates, citations, and the paragraph's role in the essay. Do not paraphrase line by line. Return strict JSON only."
         },
         {
           role: "user",
-          content: `You are revising one paragraph inside an essay.
+          content: `Revise one paragraph inside an essay.
 
-Use the surrounding context to improve continuity and reduce repetition, but do not use surrounding context as source material. The revised paragraph must remain about the current paragraph's subject.
-
-Internal quality target: <= 3. This is only for internal optimization. Do not mention the score, target, retries, or optimization process.
+Treat this as editorial reconstruction, not paraphrasing. First infer what the paragraph is about, why it exists, what role it serves, and how it fits between the previous and next paragraphs. Then write a new paragraph as if the original wording and sentence order did not exist.
 
 Request: ${input.revisionType}
 Content type: ${contentType}
@@ -86,125 +84,75 @@ ${input.nextParagraphText?.trim() || "[No next paragraph]"}
 Prior revised context:
 ${input.priorContextText?.trim() || "[No prior revised context]"}
 
-Detector window text:
-${input.detectorWindowText?.trim() || input.paragraph}
-
-Current paragraph subject anchors:
+Current paragraph factual anchors:
 ${input.subjectAnchors?.length ? input.subjectAnchors.join(", ") : "[No extracted anchors]"}
 
-Neighboring-context anchors that must not be introduced unless already present in the current paragraph:
+Neighboring paragraph names or topics that should not become source material:
 ${input.forbiddenContextAnchors?.length ? input.forbiddenContextAnchors.join(", ") : "[None]"}
 
-Your job is not to summarize, shorten, simplify, or improve readability.
-Your job is to preserve the paragraph's full meaning while transforming paragraph architecture to reduce repetitive, overly polished, textbook-like writing patterns.
+Primary goal:
+Reconstruct the paragraph so it reads like a competent college student wrote it for an essay. It should be clear, organized, natural, academically appropriate, specific, and readable. Do not make it sound like a textbook, encyclopedia, corporate report, academic journal, blog post, social post, casual conversation, or diary.
 
-Core revision priority order:
-1. Preserve all original meaning.
-2. Preserve all claims, examples, facts, and supporting details.
-3. Preserve length within 95% to 130% of the original paragraph word count.
-4. Transform paragraph architecture to reduce repetitive and generic writing patterns.
-5. Keep essay-appropriate tone.
-6. Avoid banned punctuation and style patterns.
+Preserve:
+- meaning
+- facts
+- examples
+- citations
+- named entities
+- dates
+- statistics
+- paragraph role
+- document continuity
 
-Content preservation is higher priority than detector-risk reduction. Transform the paragraph architecture. Do not reduce the paragraph.
+Do not preserve:
+- sentence structure
+- sentence order
+- information order
+- paragraph architecture
+- original opening
+- original ending
+- transition style
+- explanation order
 
-Hard requirements:
-- Preserve every major idea from the original paragraph.
-- Preserve every example, fact, claim, and explanation.
-- Preserve the current paragraph's subject. Neighboring context is for continuity only.
-- Do not borrow names, examples, facts, or topic material from the previous or next paragraph unless they already appear in the current paragraph.
-- Preserve the major subject anchors from the current paragraph.
-- Do not introduce neighboring-context anchors listed above.
-- Preserve dates, titles, citations, examples, and the paragraph's argument role.
-- Keep revised word count between 95% and 130% of the original.
-- Do not use em dashes.
-- Do not use hyphenated word compounds.
-- Do not use generic educational essay phrasing.
-- Do not write like a textbook, consultant report, research summary, or institutional overview.
-- Keep the tone appropriate for an essay.
-- Do not make the writing casual, childish, poetic, or dramatic.
-- Rewrite the paragraph as a competent human essay paragraph.
-- Do not automatically preserve sentence count, sentence order, explanation order, paragraph opening style, or paragraph ending style.
-- Change paragraph movement when possible while preserving meaning.
-- Do not restart the topic if the previous context already introduced it.
-- Do not repeat the same opening style used in surrounding paragraphs.
-- Do not repeat the same ending style used in surrounding paragraphs.
-- Do not use the same transition rhythm as surrounding paragraphs.
-- Connect naturally to the previous paragraph and prepare for the next one.
-- Vary sentence length and structure inside the detector window.
-- Reduce predictability and repeated cadence across the paragraph context window.
+Paragraph role rule:
+Keep the paragraph's job in the essay. It may introduce a topic, explain a cause, define a term, give an example, expand an argument, compare ideas, transition, or close a section. Preserve the job, not the structure used to do the job.
 
-Reduce these issues when present:
-- overly formal tone
-- repetitive sentence patterns
-- textbook cadence
-- generic essay openings
-- professionalized academic phrasing
-- claim to explanation to significance loops
-- balanced three-part lists
-- abstract noun stacking
-- smooth certainty
-- generic expert voice
-- predictable transitions
-- over-explanation
-- robotic completeness
-- low variation in sentence rhythm
-- repeated cadence across nearby paragraphs
-- vague attribution
-- promotional or inflated wording
-- filler phrases
+Continuity rule:
+Use the previous and next paragraphs only for placement and flow. Do not borrow their facts, names, examples, or subject matter unless those already appear in the current paragraph.
 
-Architecture rules:
-- Do not treat wording as the primary issue. Paragraph structure is often the primary issue.
-- Do not preserve the original architecture just because it is coherent.
-- Do not automatically preserve a broad opening, an explanatory middle, or a significance ending.
-- If the original uses a broad claim first, consider starting with a concrete detail, example, consequence, problem, or specific observation.
-- If the original ends with a universal or generic significance statement, end instead on evidence, consequence, observation, or a natural transition when possible.
-- Vary sentence count when possible while staying within the word-count range.
+Reconstruction rule:
+If the revision keeps the same sentence order, information order, and paragraph movement, it failed. Rebuild the paragraph. Decide what matters most, what should come first, what can be combined, what sounds unnatural, and what structure communicates the idea better.
 
-Avoid these paragraph movements:
-- broad claim to explanation to example to significance
-- historical topic sentence to context to explanation to list to conclusion
-- define to explain to broaden to universalize
-- topic sentence to support to significance
+Openings:
+Prefer a concrete observation, specific example, practical consequence, direct explanation, continuation from the previous idea, or named event/object when relevant. Avoid generic openings such as "X is one of," "To understand," "Throughout history," "Many scholars argue," "Since ancient times," "In modern society," and "It is important to note."
 
-Allowed replacement movements:
-- example to explanation to broader point
-- historical detail to consequence to interpretation
-- contrast to explanation to resolution
-- question or problem to evidence to answer
-- specific observation to expansion to conclusion
-- fact to implication to supporting detail
+Endings:
+Do not force broad significance endings. Avoid "This demonstrates," "This reveals," "This highlights," "This illustrates," "This ultimately shows," and "This remains important because." Some paragraphs should end with an observation, example, consequence, specific detail, or bridge to the next idea.
 
-Document-level variation:
-- Do not repeatedly choose the same paragraph architecture.
-- Reduce document-wide repetition by making this paragraph move differently from a standard textbook overview.
-- Use prior revised context as document memory. Avoid copying its opening style, ending style, transition style, sentence rhythm, or paragraph movement.
+Style:
+- Vary sentence rhythm naturally.
+- Avoid unnecessary stacked lists.
+- Reduce excessive certainty such as clearly, obviously, undoubtedly, proves, demonstrates, and reveals.
+- Prefer concrete language when it fits the facts.
+- Keep the revised paragraph within 95% to 130% of the original word count.
+- Never use em dashes.
+- Do not use validation, preservation, anchor, or process language inside revisedText.
 
-Openings to avoid:
-- "X is one of..."
-- "To understand X..."
-- "As societies developed..."
-- "This demonstrates..."
-- "These narratives reveal..."
-- "Such stories reflect..."
-- Do not replace these with equivalent textbook openings.
+Forbidden inside revisedText:
+- Examples such as...
+- remain part of the discussion
+- remains included
+- preserved in the revision
+- anchors
+- subject matter preserved
+- this paragraph still discusses
+- the revision preserves
+- key examples remain
+- included naturally
 
-Endings to avoid:
-- universal conclusions
-- broad importance statements
-- omniscient summary sentences
-- generic significance endings
+Before returning, check that revisedText has the same subject, preserves major facts/examples/named entities, fits after the previous paragraph, leads toward the next paragraph, reconstructs rather than paraphrases, avoids neighboring topic bleed, contains no process language, and contains no em dashes.
 
-Banned output patterns:
-- Never use the em dash character.
-- Never use hyphenated word compounds or two-word compounds joined by a hyphen.
-- Do not write phrases like AI-generated, AI-native, human-written, detector-friendly, textbook-like, well-known, up-to-date, context-aware, or student-sounding. Use normal wording instead.
-
-If validation feedback is provided, repair exactly those failures while preserving every original idea.
-If the prior attempt drifted into neighboring content, rewrite only the current paragraph. Keep neighboring paragraphs as flow context only.
-
-Return concise notes. What Changed should describe actual structural or phrasing changes. Remaining Issues should mention only unresolved repetition, generic framing, excessive certainty, balanced construction, or subject-preservation concerns.
+whatChanged should be short and factual. Do not overclaim.
 
 Return:
 {

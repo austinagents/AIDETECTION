@@ -205,14 +205,9 @@ export async function POST(request: Request) {
     }
 
     const selected = selectBestCandidate(candidates);
-    const selectedText = restoreMissingSubjectAnchors(
-      normalizeRevisionText(selected.revision.revisedText, minWordCount, maxWordCount),
-      subjectAnchors,
-      maxWordCount
-    );
     revision = {
       ...selected.revision,
-      revisedText: normalizeRevisionText(selectedText, minWordCount, maxWordCount)
+      revisedText: normalizeRevisionText(selected.revision.revisedText, minWordCount, maxWordCount)
     };
     const revisedAnalysis = selected.analysis;
     const afterScore = revisedAnalysis.overallRisk;
@@ -352,6 +347,9 @@ function normalizeRevisionText(text: string, minWordCount: number, maxWordCount:
   const withoutBannedPunctuation = text
     .replace(/—/g, ", ")
     .replace(/\b([A-Za-z]+)-([A-Za-z]+)\b/g, "$1 $2")
+    .split(/(?<=[.!?])\s+/)
+    .filter((sentence) => !containsRevisionMetaLanguage(sentence))
+    .join(" ")
     .replace(/\s+/g, " ")
     .replace(/\s+([,.;:!?])/g, "$1")
     .trim();
@@ -363,28 +361,8 @@ function normalizeRevisionText(text: string, minWordCount: number, maxWordCount:
   return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
-function restoreMissingSubjectAnchors(text: string, subjectAnchors: string[], maxWordCount: number) {
-  const normalizedText = normalizeComparableText(text);
-  const missing = subjectAnchors
-    .filter((anchor) => shouldRestoreAnchor(anchor))
-    .filter((anchor) => !normalizedText.includes(normalizeComparableText(anchor)))
-    .slice(0, 4);
-  if (!missing.length) return text;
-
-  const addition = ` Examples such as ${formatAnchorList(missing)} remain part of the discussion.`;
-  const candidate = `${text.replace(/\s+$/, "")}${addition}`;
-  return countWords(candidate) <= maxWordCount ? candidate : text;
-}
-
-function shouldRestoreAnchor(anchor: string) {
-  const words = anchor.split(/\s+/).filter(Boolean);
-  return words.length >= 2 && words.length <= 4 && !/^(as|because|before|for|from|if|in|of|that|the|these|this|to|when|while|with)\b/i.test(anchor);
-}
-
-function formatAnchorList(anchors: string[]) {
-  if (anchors.length === 1) return anchors[0];
-  if (anchors.length === 2) return `${anchors[0]} and ${anchors[1]}`;
-  return `${anchors.slice(0, -1).join(", ")}, and ${anchors[anchors.length - 1]}`;
+function containsRevisionMetaLanguage(text: string) {
+  return /\b(examples such as|remain part of the discussion|remains included|preserved in the revision|anchors?|subject matter preserved|this paragraph still discusses|the revision preserves|key examples remain|included naturally)\b/i.test(text);
 }
 
 const bannedRevisionPatterns = [
