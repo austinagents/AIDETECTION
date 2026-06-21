@@ -50,8 +50,45 @@ export async function reviseParagraph(input: {
       messages: [
         {
           role: "system",
-          content:
-            "You rewrite college essay paragraphs by diagnosing the AI-like writing pattern, then rebuilding the paragraph around a different organizing center. Do not paraphrase. Do not simplify into casual speech. Preserve the meaning and evidence, but change the route the paragraph takes. The result should sound like a capable college student who researched the topic and wrote the essay themselves. Do not write as an educator, explainer, textbook author, documentary narrator, encyclopedia entry, or informational article. Do not teach the topic to the reader. Write as a college student developing an argument inside an essay. The paragraph should sound like the student is making a point, not explaining a subject. Return strict JSON only."
+          content: `You rewrite college essay paragraphs.
+
+Your goal is to preserve the author's meaning, evidence, facts, examples, named entities, citations, and essay continuity while reducing common AI-writing fingerprints.
+
+Target voice:
+
+A college student who researched the topic and wrote the essay themselves.
+
+Reduce:
+
+- textbook cadence
+- professionalized tone
+- generic expert voice
+- predictable structure
+- balanced constructions
+- formulaic transitions
+- abstract noun density
+- smooth certainty
+- repetitive explanation patterns
+
+Do not:
+
+- paraphrase sentence by sentence
+- summarize
+- simplify the ideas
+- add new claims
+- add new themes
+- add interpretation
+- add philosophical framing
+- add significance statements
+- write like a textbook
+- write like an encyclopedia
+- write like an educational article
+- write like a consultant
+- write like a professional editor
+
+Write as the original student author expressing the same ideas more naturally.
+
+Return strict JSON only.`
         },
         {
           role: "user",
@@ -101,7 +138,7 @@ function buildRevisionPrompt(
   input: Parameters<typeof reviseParagraph>[0],
   contentType: ContentType
 ) {
-  return `You are given one paragraph from a larger essay.
+  return `Rewrite one paragraph from a larger ${contentType.toLowerCase()}.
 
 Current paragraph:
 
@@ -117,154 +154,58 @@ ${input.nextParagraphText || "[None]"}
 
 Rewrite the current paragraph.
 
-Important:
+Primary product goal:
 
-Treat the current paragraph as source material.
+Produce college-appropriate writing that preserves the author's meaning while reducing AI-writing fingerprints.
 
-First, silently diagnose why it sounds AI-like.
+Success requires both:
 
-Look for:
+- preserve the original meaning and evidence
+- reduce patterns commonly associated with AI-generated writing
 
-* broad textbook opening
-* professionalized tone
-* abstract noun stacking
-* claim to explanation to significance structure
-* smooth certainty
-* balanced list structure
-* generic expert voice
-* predictable explanation order
+The target is:
 
-Then identify its current organizing center.
+A college student who researched the topic and wrote the essay themselves.
 
-Then choose a different organizing center that preserves the same meaning, evidence, examples, named entities, citations, and essay continuity.
+Preserve:
 
-Write a new paragraph from that new organizing center.
+- meaning
+- facts
+- examples
+- named entities
+- citations
+- essay continuity
 
-The new paragraph must not preserve the original opening type, explanation order, paragraph movement, or ending type.
+Reduce:
 
-Do not paraphrase sentence by sentence.
+- textbook cadence
+- professionalized tone
+- generic expert voice
+- predictable structure
+- balanced constructions
+- formulaic transitions
+- abstract noun density
+- smooth certainty
+- repetitive explanation patterns
+- broad significance statements
 
-Do not organize the new paragraph around the same center of gravity.
+Do not:
 
-Do not simplify the paragraph.
+- summarize
+- simplify the ideas
+- add interpretation
+- add new themes
+- add philosophical framing
+- add significance statements
+- teach the topic to the reader
+- explain the topic like an article
+- sound more impressive than the original
 
-Maintain college-level specificity, maturity, and subject knowledge.
+The revised paragraph should feel like the same student expressing the same ideas more naturally.
 
-Change the route the paragraph takes.
+The revised paragraph should be at least as long as the original paragraph.
 
-The new paragraph must sound like a college student essay, not a textbook, not professional editor prose, and not casual speech.
-
-Do not write as an educator, explainer, textbook author, documentary narrator, encyclopedia entry, or informational article.
-
-Do not teach the topic to the reader.
-
-Write as a college student developing an argument inside an essay.
-
-The paragraph should sound like the student is making a point, not explaining a subject.
-
-Avoid phrases like:
-
-* helped people make sense of
-* gave people a way to understand
-* showed how
-* this way of thinking
-* these stories weren't just
-* it was easier to
-* it was simpler and more comforting
-
-Prefer argumentative student movement:
-
-* specific situation to claim
-* example to interpretation
-* contrast to consequence
-* problem to explanation
-* concrete detail to essay point
-
-The output fails if it sounds like:
-
-"same paragraph, different wording"
-
-The output also fails if it sounds like:
-
-"same paragraph, simpler wording"
-
-It should not sound like:
-
-* a textbook
-* an encyclopedia
-* an academic article
-* a consultant report
-* an AI explanation
-* a polished summary
-
-Avoid broad academic openings.
-
-Do not start with phrases like:
-
-* Mythology is
-* Mythology stands
-* The origins of
-* The development of
-* The transition from
-* In prehistoric times
-* Before the rise of
-* Throughout history
-* To understand
-* Many scholars argue
-* X played a crucial role
-* X served as
-* X represents
-
-Prefer a plain, direct opening that a student would naturally choose.
-
-Examples of the right style:
-
-* People were telling stories before they had writing.
-* Early people did not have clear explanations for storms, death, or failed crops.
-* A sound in the grass could matter.
-* A failed harvest needed an explanation.
-* Some myths began with ordinary fears.
-* Stories helped people explain what they could not control.
-
-Do not copy those examples unless they fit naturally.
-
-The new paragraph should:
-
-* keep the same meaning
-* keep important facts
-* keep important examples
-* keep named entities
-* fit with the previous and next paragraph
-* use college-student execution
-* vary sentence length naturally
-
-The new paragraph should not:
-
-* follow the same sentence order
-* follow the same explanation order
-* use the same first sentence strategy
-* use the same ending strategy
-* sound more impressive than the original
-* use broad significance language
-
-Avoid words and phrases that create textbook voice:
-
-* fundamental
-* framework
-* universal
-* significant
-* deeply connected
-* closely linked
-* shaped human understanding
-* cultural achievement
-* natural phenomena
-* formal systems
-* profound themes
-* demonstrates
-* reveals
-* highlights
-* illustrates
-* ultimately shows
+Do not shorten the paragraph through summarization.
 
 Do not use em dashes.
 
