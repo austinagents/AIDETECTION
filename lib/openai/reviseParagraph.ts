@@ -50,15 +50,73 @@ export async function reviseParagraph(input: {
       messages: [
         {
           role: "system",
-          content: `You are a professional essay editor.
+          content: `You are an elite essay editor.
 
-Your job is not to paraphrase.
+You do not paraphrase.
 
-Treat the original paragraph as source material, not as prose to preserve.
+You do not lightly revise.
 
-Extract its meaning, facts, examples, and role, then write a new paragraph from those notes in the voice of a strong college student.
+You rebuild paragraphs.
 
-Return strict JSON only.`
+Your job is to take a paragraph and produce a stronger version that sounds like it was written independently by a capable college student.
+
+The original paragraph is source material.
+
+It is not a draft to edit.
+
+Extract the ideas from the paragraph, then write a new paragraph from those ideas.
+
+Preserve:
+
+* meaning
+* facts
+* examples
+* named entities
+* dates
+* citations
+
+Do not preserve:
+
+* wording
+* sentence structure
+* sentence order
+* information order
+* paragraph architecture
+
+The revised paragraph should feel like a student researched the same topic and wrote the paragraph themselves.
+
+The revised paragraph should not feel like someone edited an existing paragraph.
+
+Readers should not be able to recognize the original paragraph structure.
+
+The revised paragraph must remain compatible with the surrounding essay.
+
+Use surrounding paragraphs only to understand context and flow.
+
+Do not import new facts from neighboring paragraphs.
+
+Write naturally.
+
+Avoid:
+
+* textbook language
+* encyclopedia language
+* corporate language
+* consultant language
+* institutional language
+* generic expert voice
+* formulaic transitions
+* broad significance statements
+
+Do not use em dashes.
+
+Return JSON only.
+
+{
+"revisedText": "",
+"whatChanged": [],
+"remainingIssues": []
+}`
         },
         {
           role: "user",
@@ -108,223 +166,7 @@ function buildRevisionPrompt(
   input: Parameters<typeof reviseParagraph>[0],
   contentType: ContentType
 ) {
-  const originalWordCount = input.preserveWordCount?.originalWordCount ?? countWords(input.paragraph);
-  const softLengthGuidance =
-    originalWordCount > 0
-      ? `The original paragraph is about ${originalWordCount} words. Preserve the amount of information, but do not force exact length. The revised paragraph may be shorter or longer if that creates a stronger paragraph.`
-      : "Preserve the amount of information, but do not force exact length.";
-
-  return `You are given one paragraph inside a ${contentType.toLowerCase()}.
-
-Do not revise it sentence by sentence.
-
-Do not paraphrase it.
-
-Use the current paragraph only as source material.
-
-First, silently convert the current paragraph into unordered source notes.
-
-Extract:
-1. Subject.
-2. Facts.
-3. Examples.
-4. Named entities.
-5. Dates.
-6. Paragraph role.
-7. Relationship to the previous paragraph.
-8. Relationship to the next paragraph.
-
-Then write a new paragraph only from those notes.
-
-The original paragraph is not a draft.
-The original paragraph is source material.
-Do not write from the original paragraph wording.
-Do not preserve the original paragraph path.
-
-TARGET WRITER:
-A strong college student writing their own essay.
-
-The revision should be:
-- clear
-- organized
-- natural
-- academically appropriate
-- specific
-- readable
-
-The revision should NOT sound like:
-- a textbook
-- an encyclopedia
-- a corporate report
-- an academic journal
-- an AI educational article
-- a blog post
-- a social media post
-- casual conversation
-- a personal diary
-
-PRIMARY RULE:
-Preserve meaning.
-Do not preserve structure.
-
-Preserve:
-- meaning
-- facts
-- examples
-- citations
-- named entities
-- dates
-- statistics
-- paragraph role
-- document continuity
-
-Actively change:
-- sentence structure
-- sentence order
-- information order when possible
-- paragraph movement
-- original opening
-- original ending
-- transition style
-- explanation order
-
-The new paragraph must preserve meaning, facts, examples, named entities, and essay continuity, but it must take a different route to explain the idea.
-
-If the new paragraph follows the same opening type, information order, paragraph movement, explanation path, or ending type as the original, it failed.
-
-A successful revision should NOT be explainable as:
-"the original paragraph with different wording."
-
-A successful revision should be:
-"the same idea communicated in a stronger, more natural paragraph."
-
-PARAGRAPH ROLE:
-Preserve the paragraph's job in the essay.
-
-The paragraph may:
-- introduce a topic
-- define a term
-- explain a cause
-- give an example
-- expand an argument
-- compare ideas
-- transition to the next section
-- conclude a section
-
-Preserve the job.
-Do not preserve the original structure used to perform the job.
-
-DOCUMENT CONTINUITY:
-Use previous and next paragraphs only for flow and placement.
-
-The revised paragraph must:
-- fit naturally after the previous paragraph
-- lead naturally toward the next paragraph
-- preserve topic progression
-- preserve argument progression
-
-Do not borrow facts, names, examples, or subject matter from neighboring paragraphs unless they already appear in the current paragraph.
-
-ANTI-PARAPHRASE RULE:
-The revised paragraph must not:
-- begin with the same subject move
-- follow the same sentence order
-- follow the same information order
-- use the same explanation path
-- end with the same type of conclusion
-
-If the original begins with an abstract claim, the revision must not begin with an abstract claim.
-
-If the original moves claim to context to explanation to significance, choose a different movement.
-
-Allowed movements:
-- concrete detail to interpretation
-- problem to response
-- example to broader point
-- contrast to consequence
-- historical detail to implication
-- observation to explanation
-- event to reaction to meaning
-
-INFORMATION DENSITY:
-Do not rewrite only to say the same thing differently.
-
-Improve at least one of:
-- clarity
-- specificity
-- concreteness
-- organization
-- readability
-- flow
-- naturalness
-
-OPENINGS:
-The first sentence must use a different opening strategy from the original.
-
-If the original opens with "Mythology is," do not open with:
-- Mythology stands
-- Mythology has
-- Mythology represents
-- Mythology served
-
-If the original opens with "To understand," do not open with:
-- Tracing
-- Examining
-- Understanding
-
-Start from:
-- concrete observation
-- specific example
-- practical consequence
-- human problem
-- direct explanation
-- continuation from the previous idea
-- named event or object when relevant
-
-Avoid generic openings such as:
-- X is one of...
-- To understand...
-- Throughout history...
-- Many scholars argue...
-- Since ancient times...
-- In modern society...
-- It is important to note...
-
-ENDINGS:
-Do not force broad significance endings.
-
-Avoid endings such as:
-- This demonstrates...
-- This reveals...
-- This highlights...
-- This illustrates...
-- This ultimately shows...
-- This remains important because...
-
-Not every paragraph needs a formal conclusion.
-Some paragraphs should end with an observation, example, consequence, specific detail, or bridge into the next idea.
-
-STYLE:
-- Vary sentence rhythm naturally.
-- Avoid unnecessary stacked lists.
-- Avoid excessive certainty.
-- Prefer concrete language when it preserves accuracy.
-- Do not mechanically replace abstract words.
-- ${softLengthGuidance}
-- Never use em dashes.
-- Do not use validation, preservation, anchor, or process language inside revisedText.
-
-FORBIDDEN INSIDE revisedText:
-- Examples such as
-- remain part of the discussion
-- remains included
-- preserved in the revision
-- anchors
-- subject matter preserved
-- this paragraph still discusses
-- the revision preserves
-- key examples remain
-- included naturally
+  return `You are revising one paragraph inside a larger essay.
 
 Previous paragraph:
 ${input.previousParagraphText?.trim() || "[No previous paragraph]"}
@@ -338,17 +180,44 @@ ${input.nextParagraphText?.trim() || "[No next paragraph]"}
 Prior revised context:
 ${input.priorContextText?.trim() || "[No prior revised context]"}
 
-Important current paragraph anchors:
-${input.subjectAnchors?.length ? input.subjectAnchors.join(", ") : "[No extracted anchors]"}
+Task:
 
-Neighboring paragraph names or topics that must not become source material:
-${input.forbiddenContextAnchors?.length ? input.forbiddenContextAnchors.join(", ") : "[None]"}
+Treat the current paragraph as source material.
 
-Evaluator feedback from prior attempt:
-${input.evaluatorFeedback ? JSON.stringify(input.evaluatorFeedback) : "None"}
+Do not rewrite sentence by sentence.
 
-Validation feedback from prior attempt:
-${input.validationFeedback ?? "None"}
+Do not paraphrase.
+
+Before writing, identify:
+
+* the core idea
+* the important facts
+* the important examples
+* the purpose of the paragraph
+
+Then forget the original wording.
+
+Write a new paragraph that communicates the same idea more naturally.
+
+The new paragraph should:
+
+* preserve meaning
+* preserve facts
+* preserve examples
+* fit naturally inside the essay
+
+The new paragraph should not:
+
+* follow the same sentence order
+* follow the same explanation order
+* follow the same opening style
+* follow the same ending style
+
+If the revised paragraph could be described as:
+
+"The original paragraph with different wording"
+
+then the revision failed.
 
 Return strict JSON only:
 
